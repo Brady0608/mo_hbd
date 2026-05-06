@@ -92,19 +92,37 @@ function drawEngine(pools, rarityMap, ssrPity, opts = {}) {
   // ③ 十連第 10 抽 SR 保底
   if (forceSrMin && target === 'R') target = 'SR'
 
-  // ④ SSR / UR 皆從 HIGH 池取牌；SR / R 各自有池
-  const poolKey   = HIGH_RARITIES.has(target) ? 'HIGH' : target
-  const fallbacks = ['HIGH', 'SR', 'R'].filter(k => k !== poolKey)
+  // ④ UR/SSR 分別只從 HIGH 池中對應標籤的好友抽取（確保機率獨立）
+  //    SR / R 各自有池
+  if (HIGH_RARITIES.has(target)) {
+    // 先嘗試目標標籤（UR → 只抽 UR 標籤；SSR → 只抽 SSR 標籤）
+    const labeled = (pools.HIGH ?? []).filter(id => rarityMap[id] === target)
+    const pool    = labeled.length ? labeled : (pools.HIGH ?? [])  // 無對應標籤時 fallback 整個 HIGH
+    if (pool.length) {
+      const id   = pool[Math.floor(Math.random() * pool.length)]
+      const wish = ALL_WISHES.find(w => w.id === id)
+      if (wish) return { wish, rarity: rarityMap[id] ?? target }
+    }
+    // HIGH 池全空時降級到 SR
+    target = 'SR'
+  }
 
-  for (const key of [poolKey, ...fallbacks]) {
-    const pool = pools[key] ?? []
-    if (!pool.length) continue
+  // SR / R 各自池
+  const pool = pools[target] ?? []
+  if (pool.length) {
     const id   = pool[Math.floor(Math.random() * pool.length)]
     const wish = ALL_WISHES.find(w => w.id === id)
     if (wish) return { wish, rarity: rarityMap[id] ?? target }
   }
 
-  // 終極後備
+  // 終極後備（理論上不應走到這裡）
+  for (const key of ['SR', 'R', 'HIGH']) {
+    const fb = pools[key] ?? []
+    if (!fb.length) continue
+    const id   = fb[Math.floor(Math.random() * fb.length)]
+    const wish = ALL_WISHES.find(w => w.id === id)
+    if (wish) return { wish, rarity: rarityMap[id] ?? 'R' }
+  }
   const wish = ALL_WISHES[Math.floor(Math.random() * ALL_WISHES.length)]
   return { wish, rarity: rarityMap[wish.id] ?? 'R' }
 }

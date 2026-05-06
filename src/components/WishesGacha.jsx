@@ -1,10 +1,11 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { motion, useInView, AnimatePresence } from 'framer-motion'
-import { Lock, Play, X, Key } from 'lucide-react'
+import { Lock, Play, X, Key, Info } from 'lucide-react'
 import { ALL_WISHES as WISHES_DATA } from '../data/wishes'
-import { RARITY_DISPLAY } from '../data/config'
+import { RARITY_DISPLAY, RARITY_RATES, POOL_INFO } from '../data/config'
 import { detectMediaType } from '../utils/media'
 import { useGachaSystem } from '../hooks/useGachaSystem'
+import GachaAnimation from './GachaAnimation'
 
 /* ─── 設計 Token ──────────────────────────────────────────────────────────── */
 const C = {
@@ -28,156 +29,7 @@ const ALL_WISHES = WISHES_DATA
 /* 稀有度顯示設定 → 來自 src/data/config.js，可在那裡統一調整 */
 const RARITY_CFG = RARITY_DISPLAY
 
-const DOME_DOTS = [[24,32],[56,18],[80,38],[14,58],[50,60],[83,62],[32,80],[66,77]]
-const DOME_COLS = [C.forest, C.leather, C.rose, '#9B7FD4', '#6A8FC2', C.leatherLite, C.leatherDark, '#C4848E']
-
-/* ─── CapsuleDisplay ──────────────────────────────────────────────────────── */
-function CapsuleDisplay({ phase, pick }) {
-  if (phase === 'idle')
-    return <span className="text-3xl select-none">🎊</span>
-  if (phase === 'shaking')
-    return (
-      <motion.span className="text-3xl select-none"
-        animate={{ rotate: [-12, 12, -10, 10, -6, 6, 0] }}
-        transition={{ duration: 0.6 }}>🌀</motion.span>
-    )
-  if (phase === 'dropping')
-    return (
-      <motion.div
-        className="w-11 h-11 rounded-full"
-        style={{
-          background: `linear-gradient(145deg, ${pick?.color ?? C.leather}99, ${pick?.color ?? C.leather})`,
-          boxShadow: `0 0 18px ${pick?.color ?? C.leather}66`,
-        }}
-        initial={{ y: -52, scale: 0.32, opacity: 0 }}
-        animate={{ y: 0, scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 16 }}
-      />
-    )
-  if (phase === 'opening')
-    return (
-      <motion.div
-        className="w-11 h-11 rounded-full flex items-center justify-center text-xl"
-        style={{ background: `linear-gradient(145deg, ${pick?.color ?? C.leather}99, ${pick?.color ?? C.leather})` }}
-        animate={{ scale: [1, 1.55, 0.1], rotate: [0, 25, -25, 0], opacity: [1, 1, 0] }}
-        transition={{ duration: 0.48 }}
-      >
-        {pick?.emoji}
-      </motion.div>
-    )
-  return null
-}
-
-/* ─── GachaMachine ────────────────────────────────────────────────────────── */
-function GachaMachine({ remaining, phase, pick, onPull }) {
-  const allDone = remaining === 0
-
-  return (
-    <motion.div
-      className="flex flex-col items-center select-none"
-      animate={phase === 'shaking'
-        ? { x: [-4,4,-7,7,-4,4,-2,2,0], rotate: [-1.2,1.2,-1.8,1.8,-1.2,1.2,-0.6,0.6,0] }
-        : {}}
-      transition={{ duration: 0.65 }}
-    >
-      {/* 玻璃圓頂 */}
-      <div
-        className="relative w-40 h-40 rounded-full overflow-hidden"
-        style={{
-          background: 'rgba(255,252,235,0.58)',
-          border: `2.5px solid ${C.leather}45`,
-          boxShadow: `0 4px 24px ${C.leather}18, inset 0 1px 0 rgba(255,255,255,0.72)`,
-        }}
-      >
-        {/* 高光 */}
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: 'radial-gradient(ellipse at 35% 28%, rgba(255,255,255,0.48), transparent 58%)' }} />
-
-        {/* 小膠囊點 */}
-        {Array.from({ length: Math.min(remaining, 8) }, (_, i) => (
-          <motion.div key={i}
-            className="absolute rounded-full"
-            style={{
-              left: `${DOME_DOTS[i][0]}%`, top: `${DOME_DOTS[i][1]}%`,
-              width: 12, height: 12, background: DOME_COLS[i],
-              transform: 'translate(-50%,-50%)', opacity: 0.72,
-            }}
-            animate={phase === 'shaking'
-              ? { y: [0,-5,3,-2,0], x: [0,2,-2,1,0] }
-              : {}}
-            transition={{ duration: 0.5, delay: i * 0.04 }}
-          />
-        ))}
-
-        <div className="absolute inset-0 flex items-center justify-center">
-          {allDone
-            ? <motion.span className="text-3xl" animate={{ rotate: [0,10,-10,0] }} transition={{ duration: 2, repeat: Infinity }}>✨</motion.span>
-            : <span className="font-rpg text-2xl font-bold opacity-55" style={{ color: C.leatherDeep }}>{remaining}</span>
-          }
-        </div>
-      </div>
-
-      {/* 頸管 */}
-      <div className="w-14 h-3"
-        style={{ background: `linear-gradient(to bottom, ${C.leather}45, ${C.leather}28)`, borderRadius: '0 0 6px 6px' }} />
-
-      {/* 機器本體 */}
-      <div className="w-52 rounded-2xl overflow-hidden"
-        style={{
-          background: 'rgba(255,252,235,0.85)',
-          border: `1.5px solid ${C.leather}32`,
-          outline: `1px dashed ${C.leather}18`, outlineOffset: '-5px',
-          boxShadow: `0 4px 24px rgba(61,48,39,0.10), 0 2px 0 ${C.leatherDark}22, inset 0 1px 0 rgba(255,255,255,0.62)`,
-        }}
-      >
-        {/* 品牌帶 */}
-        <div className="py-2 text-center" style={{ background: `linear-gradient(135deg, ${C.leather}22, ${C.leather}12)` }}>
-          <p className="font-rpg text-[10px] tracking-[0.20em] font-semibold" style={{ color: C.leatherDeep }}>
-            ✦ BIRTHDAY GACHA ✦
-          </p>
-        </div>
-
-        {/* 顯示窗 */}
-        <div className="px-4 pt-4">
-          <div className="h-16 rounded-xl flex items-center justify-center"
-            style={{
-              background: 'rgba(255,249,227,0.92)',
-              border: `1.5px solid ${C.leather}2A`,
-              boxShadow: 'inset 0 2px 6px rgba(61,48,39,0.06)',
-            }}>
-            <CapsuleDisplay phase={phase} pick={pick} />
-          </div>
-        </div>
-
-        <p className="text-center text-[10px] font-rpg opacity-60 mt-2" style={{ color: C.leatherDeep }}>
-          {allDone ? 'All Wishes Unlocked ✦' : `還有 ${remaining} 位好友等待解鎖`}
-        </p>
-
-        {/* 抽取按鈕 */}
-        <div className="px-4 pb-4 mt-3">
-          <motion.button
-            onClick={onPull}
-            disabled={phase !== 'idle' || allDone}
-            className={`w-full py-3 rounded-xl font-semibold text-sm transition-all duration-150 ${
-              phase === 'idle' && !allDone ? 'btn-game-primary' : ''
-            }`}
-            style={phase !== 'idle' || allDone
-              ? { background: `${C.leather}28`, color: C.leatherDeep, cursor: 'not-allowed', borderRadius: '0.75rem', padding: '0.75rem' }
-              : undefined}
-            whileHover={phase === 'idle' && !allDone ? { scale: 1.03, y: -2 } : {}}
-            whileTap={phase === 'idle' && !allDone ? { scale: 0.93, y: 3, transition: SPRING } : {}}
-            transition={SPRING}
-          >
-            {phase === 'shaking' ? '✦ 搖動中…'
-             : phase === 'dropping' || phase === 'opening' ? '✦ 抽取中…'
-             : allDone ? '✦ 全部解鎖！'
-             : '✦ 抽取祝福 ✦'}
-          </motion.button>
-        </div>
-      </div>
-    </motion.div>
-  )
-}
+/* ─── (CapsuleDisplay & GachaMachine removed — replaced by GachaAnimation) ── */
 
 /* ─── WishCard ────────────────────────────────────────────────────────────── */
 function WishCard({ wish, isUnlocked, assignedRarity, onClick }) {
@@ -384,14 +236,14 @@ function WishRevealModal({ wish, isNew, onClose }) {
         <>
           <motion.div key="bd" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
-            className="fixed inset-0 z-[100] bg-[rgba(42,32,18,0.72)] backdrop-blur-[6px]"
+            className="fixed inset-0 z-[300] bg-[rgba(42,32,18,0.72)] backdrop-blur-[6px]"
             onClick={onClose} />
 
           <motion.div key="card" initial={{ opacity: 0, scale: 0.86, y: 28 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 14 }}
             transition={SPRING}
-            className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none"
+            className="fixed inset-0 z-[301] flex items-center justify-center p-4 pointer-events-none"
           >
             <div
               className="w-full max-w-sm overflow-hidden pointer-events-auto"
@@ -514,6 +366,192 @@ function WishRevealModal({ wish, isNew, onClose }) {
           </motion.div>
         </>
       )}
+    </AnimatePresence>
+  )
+}
+
+/* ─── PoolInfoModal ───────────────────────────────────────────────────────────
+   蛋池資訊彈窗：顯示各稀有度出率、每位好友所在池別。
+   卡片尺寸由 src/data/config.js → POOL_INFO 控制。
+   ─────────────────────────────────────────────────────────────────────────── */
+function PoolInfoModal({ pools, rarityMap, onClose }) {
+  const wishById = useMemo(
+    () => Object.fromEntries(ALL_WISHES.map(w => [w.id, w])),
+    []
+  )
+
+  const total = Object.values(RARITY_RATES).reduce((a, b) => a + b, 0)
+  const pctNum = (key) => RARITY_RATES[key] / total * 100
+  const pctStr = (key) => pctNum(key).toFixed(1)
+
+  // UR / SSR 各自機率獨立（drawEngine 已依標籤分池）
+  const tiers = [
+    {
+      label: 'UR',  ids: (pools.HIGH ?? []).filter(id => rarityMap[id] === 'UR'),
+      cfg: RARITY_DISPLAY.UR,  rateKey: 'UR',
+    },
+    {
+      label: 'SSR', ids: (pools.HIGH ?? []).filter(id => rarityMap[id] === 'SSR'),
+      cfg: RARITY_DISPLAY.SSR, rateKey: 'SSR',
+    },
+    {
+      label: 'SR',  ids: pools.SR ?? [],
+      cfg: RARITY_DISPLAY.SR,  rateKey: 'SR',
+    },
+    {
+      label: 'R',   ids: pools.R  ?? [],
+      cfg: RARITY_DISPLAY.R,   rateKey: 'R',
+    },
+  ]
+
+  const { cardW, cols } = POOL_INFO
+  const emojiPx = Math.round(cardW * 0.42)
+
+  return (
+    <AnimatePresence>
+      <motion.div key="pi-bd"
+        className="fixed inset-0 z-[150] bg-[rgba(42,32,18,0.68)] backdrop-blur-[4px]"
+        initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+        transition={{ duration:0.2 }}
+        onClick={onClose}
+      />
+
+      <motion.div key="pi-card"
+        className="fixed inset-0 z-[151] flex items-center justify-center p-4 pointer-events-none"
+        initial={{ opacity:0, scale:0.9, y:18 }}
+        animate={{ opacity:1, scale:1, y:0 }}
+        exit={{ opacity:0, scale:0.94, y:10 }}
+        transition={SPRING}>
+
+        <div
+          className="w-full max-w-sm max-h-[85vh] overflow-y-auto rounded-2xl pointer-events-auto"
+          style={{
+            background: 'rgba(255,252,235,0.97)',
+            backdropFilter: 'blur(16px)',
+            border: `2px solid ${C.leather}50`,
+            outline: `1px dashed ${C.leather}20`, outlineOffset: '-6px',
+            boxShadow: `0 8px 40px rgba(61,48,39,0.18), 0 4px 0 ${C.leather}30`,
+          }}
+          onClick={e => e.stopPropagation()}>
+
+          {/* ── Header ─────────────────────────────────────────────── */}
+          <div className="sticky top-0 flex items-center justify-between px-5 py-3.5"
+            style={{
+              background: 'rgba(255,252,235,0.96)',
+              backdropFilter: 'blur(8px)',
+              borderBottom: `1px solid ${C.leather}25`,
+            }}>
+            <p className="font-rpg font-bold text-sm" style={{ color: C.ink }}>
+              ✦ 蛋池資訊
+            </p>
+            <motion.button onClick={onClose}
+              className="w-7 h-7 rounded-full flex items-center justify-center border"
+              style={{ borderColor:`${C.leather}35`, background:'rgba(255,252,235,0.8)' }}
+              whileHover={{ scale:1.1 }} whileTap={{ scale:0.88, transition:SPRING }}>
+              <X size={12} style={{ color:C.inkMid }} />
+            </motion.button>
+          </div>
+
+          {/* ── 保底說明 ────────────────────────────────────────────── */}
+          <div className="px-5 py-3 text-[11px] leading-relaxed"
+            style={{ borderBottom:`1px solid ${C.leather}18`, background:`${C.leather}06`, color:C.inkMid }}>
+            <p className="font-rpg text-[9px] tracking-widest opacity-55 mb-1.5"
+              style={{ color:C.leatherDeep }}>保底說明</p>
+            <p>🛡 <span className="font-semibold" style={{ color:RARITY_DISPLAY.SSR.border }}>SSR 保底</span>
+              ：第 50 抽必出 SSR</p>
+            <p className="mt-0.5">💎 <span className="font-semibold" style={{ color:RARITY_DISPLAY.UR.border }}>UR 保底</span>
+              ：累計 200 抽可手動兌換一張 UR</p>
+          </div>
+
+          {/* ── 各稀有度區塊 ─────────────────────────────────────────── */}
+          <div className="px-5 py-4 space-y-5">
+            {tiers.map(({ label, ids, cfg, rateKey }) => {
+              const tierPct   = pctStr(rateKey)
+              const perChar   = ids.length
+                ? (pctNum(rateKey) / ids.length).toFixed(2)
+                : '—'
+
+              return (
+                <div key={label}>
+                  {/* Tier header row */}
+                  <div className="flex items-baseline gap-2 mb-2.5">
+                    <span className={`text-[10px] font-rpg font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}
+                      style={{ border:`1px solid ${cfg.border}` }}>
+                      {label}
+                    </span>
+                    <span className="font-rpg text-[11px] font-bold" style={{ color:cfg.border }}>
+                      {tierPct}%
+                    </span>
+                    {ids.length > 0 && (
+                      <span className="font-rpg text-[9px] opacity-45" style={{ color:C.inkMid }}>
+                        各約 {perChar}%
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Character cards grid */}
+                  {ids.length > 0 ? (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: `repeat(${cols}, ${cardW}px)`,
+                      gap: 8,
+                    }}>
+                      {ids.map((id, i) => {
+                        const w = wishById[id]
+                        if (!w) return null
+                        return (
+                          <motion.div key={id}
+                            className="relative rounded-xl overflow-hidden"
+                            style={{
+                              width: cardW,
+                              aspectRatio: '3/4',
+                              background: `linear-gradient(160deg, ${w.color}18, ${w.color}45)`,
+                              border: `1.5px solid ${w.color}55`,
+                            }}
+                            initial={{ opacity:0, scale:0.8 }}
+                            animate={{ opacity:1, scale:1 }}
+                            transition={{ delay:i*0.05, type:'spring', stiffness:320, damping:22 }}>
+
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-0.5">
+                              {w.avatar
+                                ? <img src={w.avatar} alt={w.name}
+                                    className="rounded-full object-cover"
+                                    style={{ width: emojiPx, height: emojiPx }} />
+                                : <span style={{ fontSize: emojiPx }}>{w.emoji}</span>
+                              }
+                              <p className="font-rpg font-semibold text-center leading-tight"
+                                style={{ fontSize: Math.max(8, Math.round(cardW * 0.14)), color:'rgba(61,48,39,0.85)' }}>
+                                {w.name}
+                              </p>
+                            </div>
+
+                            {/* Rarity badge */}
+                            <div className="absolute top-1 left-1">
+                              <span className={`font-rpg font-bold rounded-full ${cfg.badge}`}
+                                style={{ fontSize:7, padding:'1px 4px', border:`1px solid ${cfg.border}55` }}>
+                                {label}
+                              </span>
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-[10px] font-rpg opacity-35 pl-1" style={{ color:C.inkMid }}>
+                      尚無角色
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* 附註 */}
+          <p className="px-5 pb-4 text-[9px] font-rpg opacity-35 leading-relaxed" style={{ color:C.inkMid }}>
+            ※ UR / SSR 雖存於同一蛋池，抽取時依各自機率分別出牌。
+          </p>
+        </div>
+      </motion.div>
     </AnimatePresence>
   )
 }
@@ -643,7 +681,7 @@ function GachaDebugPanel({ totalPulls, ssrPityCounter, ssrPityProgress,
 
 /* ─── WishesGacha (main) ──────────────────────────────────────────────────── */
 export default function WishesGacha() {
-  const titleRef  = useRef(null)
+  const titleRef    = useRef(null)
   const titleInView = useInView(titleRef, { once: true, margin: '-40px' })
 
   const {
@@ -655,54 +693,38 @@ export default function WishesGacha() {
     unlockAll, resetGacha,
   } = useGachaSystem()
 
-  const [pullPhase,    setPullPhase]    = useState('idle')
-  const [currentPick,  setCurrentPick]  = useState(null)
+  // ── State machine ──────────────────────────────────────────────────────
+  const [gachaPhase,   setGachaPhase]   = useState('IDLE')  // 'IDLE' | 'ANIMATING'
+  const [pullResults,  setPullResults]  = useState([])
   const [revealWish,   setRevealWish]   = useState(null)
-  const [isNewReveal,  setIsNewReveal]  = useState(false)
-  const [lastResults,  setLastResults]  = useState([])   // 供 debug panel 顯示
+  const [revealIsNew,  setRevealIsNew]  = useState(false)
+  const [lastResults,  setLastResults]  = useState([])
+  const [showPoolInfo, setShowPoolInfo] = useState(false)
 
-  const remainingCount = ALL_WISHES.length - unlockedCount
-  const allUnlocked    = unlockedCount === ALL_WISHES.length
+  const allUnlocked = unlockedCount === ALL_WISHES.length
 
-  useEffect(() => {
-    let t
-    if (pullPhase === 'shaking')  t = setTimeout(() => setPullPhase('dropping'), 700)
-    if (pullPhase === 'dropping') t = setTimeout(() => setPullPhase('opening'),  900)
-    if (pullPhase === 'opening')  t = setTimeout(() => {
-      if (currentPick) { setRevealWish(currentPick); setIsNewReveal(true) }
-      setPullPhase('idle')
-    }, 480)
-    return () => clearTimeout(t)
-  }, [pullPhase, currentPick])
-
-  // 單抽（走扭蛋機動畫）
-  const handlePull = () => {
-    if (pullPhase !== 'idle') return
-    const [result] = drawSingle()
-    setCurrentPick({ ...result.wish, assignedRarity: result.rarity })
-    setLastResults([result])
-    setPullPhase('shaking')
+  // ── Pull handlers (走全螢幕動畫) ────────────────────────────────────────
+  const handleSinglePull = () => {
+    const results = drawSingle(); setPullResults(results); setGachaPhase('ANIMATING')
   }
-
-  // 單抽（debug 用，不走動畫）
-  const handleDebugSingle = () => {
-    const results = drawSingle()
-    setLastResults(results)
+  const handleTenPull = () => {
+    const results = drawTen(); setPullResults(results); setGachaPhase('ANIMATING')
   }
-
-  // 十連抽（debug 用）
-  const handleDebugTen = () => {
-    const results = drawTen()
-    setLastResults(results)
-  }
-
-  // UR 保底領取（debug 用）
-  const handleClaimUR = () => {
+  const handleClaimURPull = () => {
     const result = claimUR()
-    if (result) setLastResults([result])
+    if (result) { setPullResults([result]); setGachaPhase('ANIMATING') }
   }
+  const handleGachaClose       = useCallback(() => { setGachaPhase('IDLE'); setPullResults([]) }, [])
+  const handleResultCardClick   = useCallback((result) => {
+    setRevealWish({ ...result.wish, assignedRarity: result.rarity })
+    setRevealIsNew(result.isNew)
+  }, [])
 
-  const handleUnlockAll = () => unlockAll()
+  // ── Debug handlers (不走動畫) ─────────────────────────────────────────
+  const handleDebugSingle  = () => setLastResults(drawSingle())
+  const handleDebugTen     = () => setLastResults(drawTen())
+  const handleClaimURDebug = () => { const r = claimUR(); if (r) setLastResults([r]) }
+  const handleUnlockAll    = () => unlockAll()
 
   return (
     <section
@@ -743,17 +765,107 @@ export default function WishesGacha() {
       <div className="w-full max-w-5xl px-4 sm:px-8">
         <div className="flex flex-col lg:flex-row gap-10 lg:gap-14 items-start justify-center">
 
-          {/* 左：扭蛋機 */}
-          <motion.div initial={{ opacity: 0, x: -28 }} whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }} transition={{ duration: 0.6 }}
-            className="flex flex-col items-center w-full lg:w-auto">
-            <GachaMachine remaining={remainingCount} phase={pullPhase} pick={currentPick} onPull={handlePull} />
-            {unlockedCount > 0 && (
-              <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="mt-4 text-xs font-rpg tracking-wider text-center" style={{ color: C.leatherDeep }}>
-                已解鎖 {unlockedCount} / {ALL_WISHES.length} 個祝福
-              </motion.p>
-            )}
+          {/* ── 左：抽卡面板 ──────────────────────────────────────────────── */}
+          <motion.div initial={{ opacity:0, x:-28 }} whileInView={{ opacity:1, x:0 }}
+            viewport={{ once:true }} transition={{ duration:0.6 }}
+            className="flex flex-col items-center gap-4 w-full lg:w-auto">
+
+            {/* 裝飾球 */}
+            <div className="relative w-36 h-36 rounded-full flex items-center justify-center"
+              style={{
+                background: 'radial-gradient(circle at 32% 28%, rgba(255,255,255,0.52), rgba(255,249,227,0.28) 52%, transparent)',
+                border: `2.5px solid ${C.leather}40`,
+                boxShadow: `0 4px 28px ${C.leather}18, inset 0 1px 0 rgba(255,255,255,0.7)`,
+              }}>
+              <motion.span className="text-5xl select-none"
+                animate={{ rotate:[0,6,-6,0], scale:[1,1.06,0.97,1] }}
+                transition={{ duration:4.5, repeat:Infinity, ease:'easeInOut' }}>
+                🎊
+              </motion.span>
+              <div className="absolute inset-0 rounded-full pointer-events-none"
+                style={{ background:'radial-gradient(ellipse at 30% 25%, rgba(255,255,255,0.4), transparent 55%)' }} />
+            </div>
+
+            <p className="font-rpg text-[10px] tracking-[0.25em] -mt-1"
+              style={{ color:C.leatherDeep, opacity:0.52 }}>
+              ✦ BIRTHDAY GACHA ✦
+            </p>
+
+            {/* 單抽 */}
+            <motion.button onClick={handleSinglePull}
+              className="btn-game-primary w-52 py-3.5 font-semibold"
+              whileHover={{ scale:1.04, y:-2 }}
+              whileTap={{ scale:0.93, y:3, transition:SPRING }} transition={SPRING}>
+              ✦ 抽取祝福 ✦
+            </motion.button>
+
+            {/* 十連抽 */}
+            <motion.button onClick={handleTenPull}
+              className="btn-game-primary w-52 py-3 text-sm"
+              whileHover={{ scale:1.04, y:-2 }}
+              whileTap={{ scale:0.93, y:3, transition:SPRING }} transition={SPRING}>
+              ✦✦✦ 十連抽 ✦✦✦
+            </motion.button>
+
+            {/* 蛋池資訊按鈕 */}
+            <motion.button
+              onClick={() => setShowPoolInfo(true)}
+              className="flex items-center gap-1.5 font-rpg text-[10px] tracking-wider"
+              style={{ color:C.leatherDeep, opacity:0.5 }}
+              whileHover={{ opacity:1 }}
+              transition={{ duration:0.15 }}>
+              <Info size={11} />蛋池資訊
+            </motion.button>
+
+            {/* 保底進度條 */}
+            <div className="w-52 flex flex-col gap-2.5 mt-1">
+              {/* SSR */}
+              <div>
+                <div className="flex justify-between text-[9px] font-rpg mb-0.5 opacity-55"
+                  style={{ color:C.leatherDeep }}>
+                  <span>SSR 保底</span><span>{ssrPityCounter} / 49</span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background:`${C.rose}22` }}>
+                  <motion.div className="h-full rounded-full"
+                    style={{ background:`linear-gradient(90deg,${C.rose}88,${C.rose})` }}
+                    animate={{ width:`${ssrPityProgress*100}%` }} transition={{ duration:0.4 }} />
+                </div>
+              </div>
+              {/* UR */}
+              <div>
+                <div className="flex justify-between text-[9px] font-rpg mb-0.5 opacity-55"
+                  style={{ color:C.leatherDeep }}>
+                  <span>UR 保底</span><span>{urPityCounter} / 200</span>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden"
+                  style={{ background:'rgba(122,90,184,0.12)' }}>
+                  <motion.div className="h-full rounded-full"
+                    style={{ background:'linear-gradient(90deg,rgba(155,127,212,0.75),#9B7FD4)' }}
+                    animate={{ width:`${urPityProgress*100}%` }} transition={{ duration:0.4 }} />
+                </div>
+              </div>
+              {/* UR claim */}
+              <AnimatePresence>
+                {canClaimUR && (
+                  <motion.button onClick={handleClaimURPull}
+                    initial={{ opacity:0, y:6 }} animate={{ opacity:1, y:0 }} exit={{ opacity:0 }}
+                    className="w-full py-2.5 rounded-xl font-rpg text-[11px] font-bold text-white"
+                    style={{
+                      background:'linear-gradient(135deg,#7A5AB8,#9B7FD4)',
+                      boxShadow:'0 4px 0 rgba(90,50,160,0.45)',
+                    }}
+                    whileHover={{ scale:1.04, y:-1 }}
+                    whileTap={{ scale:0.94, y:3, transition:SPRING }}>
+                    ★ 領取 UR 保底
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <motion.p initial={{ opacity:0 }} animate={{ opacity: unlockedCount > 0 ? 0.5 : 0 }}
+              className="text-[10px] font-rpg tracking-wider" style={{ color:C.leatherDeep }}>
+              已解鎖 {unlockedCount} / {ALL_WISHES.length} 個祝福
+            </motion.p>
           </motion.div>
 
           {/* 右：Gallery */}
@@ -794,7 +906,7 @@ export default function WishesGacha() {
                     wish={wish}
                     isUnlocked={isUnlocked(wish.id)}
                     assignedRarity={rarityMap[wish.id]}
-                    onClick={w => { setRevealWish(w); setIsNewReveal(false) }}
+                    onClick={w => { setRevealWish(w); setRevealIsNew(false) }}
                   />
                 </motion.div>
               ))}
@@ -815,7 +927,29 @@ export default function WishesGacha() {
         </div>
       </div>
 
-      <WishRevealModal wish={revealWish} isNew={isNewReveal} onClose={() => setRevealWish(null)} />
+      {/* 蛋池資訊彈窗 */}
+      {showPoolInfo && (
+        <PoolInfoModal
+          pools={pools}
+          rarityMap={rarityMap}
+          onClose={() => setShowPoolInfo(false)}
+        />
+      )}
+
+      {/* WishRevealModal — z-[301], 覆蓋在 GachaAnimation 之上 */}
+      <WishRevealModal wish={revealWish} isNew={revealIsNew} onClose={() => setRevealWish(null)} />
+
+      {/* GachaAnimation — 全螢幕覆蓋，ANIMATING 狀態時顯示 */}
+      <AnimatePresence>
+        {gachaPhase === 'ANIMATING' && (
+          <GachaAnimation
+            results={pullResults}
+            inventory={inventory}
+            onClose={handleGachaClose}
+            onCardClick={handleResultCardClick}
+          />
+        )}
+      </AnimatePresence>
 
       {/* ── 開發測試面板 ──────────────────────────────────────────── */}
       <GachaDebugPanel
@@ -831,7 +965,7 @@ export default function WishesGacha() {
         lastResults={lastResults}
         onSingle={handleDebugSingle}
         onTen={handleDebugTen}
-        onClaimUR={handleClaimUR}
+        onClaimUR={handleClaimURDebug}
         onReset={resetGacha}
       />
     </section>
