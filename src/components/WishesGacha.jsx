@@ -696,6 +696,7 @@ export default function WishesGacha() {
   // ── State machine ──────────────────────────────────────────────────────
   const [gachaPhase,   setGachaPhase]   = useState('IDLE')  // 'IDLE' | 'ANIMATING'
   const [pullResults,  setPullResults]  = useState([])
+  const [pullKey,      setPullKey]      = useState(0)       // 每次新抽遞增，強制 GachaAnimation 重掛
   const [revealWish,   setRevealWish]   = useState(null)
   const [revealIsNew,  setRevealIsNew]  = useState(false)
   const [lastResults,  setLastResults]  = useState([])
@@ -704,17 +705,18 @@ export default function WishesGacha() {
   const allUnlocked = unlockedCount === ALL_WISHES.length
 
   // ── Pull handlers (走全螢幕動畫) ────────────────────────────────────────
-  const handleSinglePull = () => {
-    const results = drawSingle(); setPullResults(results); setGachaPhase('ANIMATING')
+  const startPull = (results) => {
+    setPullResults(results)
+    setPullKey(k => k + 1)   // 強制 GachaAnimation 重掛，重置動畫到 effect 階段
+    setGachaPhase('ANIMATING')
   }
-  const handleTenPull = () => {
-    const results = drawTen(); setPullResults(results); setGachaPhase('ANIMATING')
+  const handleSinglePull   = () => startPull(drawSingle())
+  const handleTenPull      = () => startPull(drawTen())
+  const handleContinuePull = useCallback(() => startPull(drawTen()), [drawTen])
+  const handleClaimURPull  = () => {
+    const result = claimUR(); if (result) startPull([result])
   }
-  const handleClaimURPull = () => {
-    const result = claimUR()
-    if (result) { setPullResults([result]); setGachaPhase('ANIMATING') }
-  }
-  const handleGachaClose       = useCallback(() => { setGachaPhase('IDLE'); setPullResults([]) }, [])
+  const handleGachaClose = useCallback(() => { setGachaPhase('IDLE'); setPullResults([]) }, [])
   const handleResultCardClick   = useCallback((result) => {
     setRevealWish({ ...result.wish, assignedRarity: result.rarity })
     setRevealIsNew(result.isNew)
@@ -943,9 +945,11 @@ export default function WishesGacha() {
       <AnimatePresence>
         {gachaPhase === 'ANIMATING' && (
           <GachaAnimation
+            key={pullKey}
             results={pullResults}
             inventory={inventory}
             onClose={handleGachaClose}
+            onContinue={handleContinuePull}
             onCardClick={handleResultCardClick}
           />
         )}

@@ -274,7 +274,7 @@ function ResultCard({ result, inventory, onClick }) {
 }
 
 /* ── ResultScreen ───────────────────────────────────────────────────────── */
-function ResultScreen({ results, inventory, onClose, onCardClick }) {
+function ResultScreen({ results, inventory, onClose, onContinue, onCardClick }) {
   const isSingle = results.length === 1
 
   return (
@@ -325,20 +325,38 @@ function ResultScreen({ results, inventory, onClose, onCardClick }) {
         點擊卡片可播放好友的祝福 ♪
       </motion.p>
 
-      <motion.button onClick={onClose}
-        className="px-10 py-3 rounded-full font-rpg font-semibold text-sm"
-        style={{ background:'rgba(212,163,115,0.92)', color:'#1a0a00',
-          boxShadow:'0 4px 0 rgba(120,72,36,0.45)' }}
-        initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.5 }}
-        whileHover={{ scale:1.04, y:-2 }} whileTap={{ scale:0.94, y:3, transition:SPRING }}>
-        ✦ 繼續抽 ✦
-      </motion.button>
+      {/* 按鈕列 */}
+      <motion.div className="flex flex-col items-center gap-2.5"
+        initial={{ opacity:0, y:16 }} animate={{ opacity:1, y:0 }} transition={{ delay:0.5 }}>
+
+        {/* 繼續十連抽 — 主要行動 */}
+        <motion.button onClick={onContinue}
+          className="px-10 py-3 rounded-full font-rpg font-semibold text-sm"
+          style={{ background:'rgba(212,163,115,0.92)', color:'#1a0a00',
+            boxShadow:'0 4px 0 rgba(120,72,36,0.45)' }}
+          whileHover={{ scale:1.04, y:-2 }} whileTap={{ scale:0.94, y:3, transition:SPRING }}>
+          ✦✦✦ 繼續十連抽 ✦✦✦
+        </motion.button>
+
+        {/* 返回主頁面 — 次要 */}
+        <motion.button onClick={onClose}
+          className="font-rpg text-xs px-6 py-2 rounded-full"
+          style={{
+            border: '1px solid rgba(255,255,255,0.22)',
+            color: 'rgba(255,255,255,0.55)',
+            background: 'rgba(255,255,255,0.06)',
+          }}
+          whileHover={{ opacity:1, color:'rgba(255,255,255,0.85)' }}
+          whileTap={{ scale:0.95, transition:SPRING }}>
+          返回主頁面
+        </motion.button>
+      </motion.div>
     </motion.div>
   )
 }
 
 /* ── GachaAnimation (main export) ───────────────────────────────────────── */
-export default function GachaAnimation({ results, inventory, onClose, onCardClick }) {
+export default function GachaAnimation({ results, inventory, onClose, onContinue, onCardClick }) {
   const [innerPhase, setInnerPhase] = useState('effect')
 
   const tier = useMemo(() => {
@@ -360,7 +378,7 @@ export default function GachaAnimation({ results, inventory, onClose, onCardClic
             : tier === 'SSR' ? <SSREffect    key="ssr"  onDone={advance} />
             :                  <NormalEffect key="norm" onDone={advance} />
           : <ResultScreen key="result" results={results} inventory={inventory}
-              onClose={onClose} onCardClick={onCardClick} />
+              onClose={onClose} onContinue={onContinue} onCardClick={onCardClick} />
         }
       </AnimatePresence>
     </motion.div>

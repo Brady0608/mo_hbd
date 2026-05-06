@@ -17,9 +17,9 @@
 
 export const RARITY_RATES = {
   R:   70,   // 普通
-  SR:  27,   // 稀有
-  SSR: 2,   // 超稀有
-  UR:  1,   // 極稀有
+  SR:  28.7,   // 稀有
+  SSR: 1,   // 超稀有
+  UR:  0.3,   // 極稀有
 }
 
 // ssrPityCounter 累積到此值時，該抽強制從 SSR 池出貨（第 50 抽保底，不含 UR）
