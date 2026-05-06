@@ -4,6 +4,7 @@ import AdventureMap from './components/AdventureMap'
 import WishesGacha from './components/WishesGacha'
 import Footer from './components/Footer'
 import TornEdge from './components/TornEdge'
+import BGMPlayer from './components/BGMPlayer'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <TornEdge fill="#FFF9E3" flip />
       </main>
       <Footer />
+      <BGMPlayer />
     </div>
   )
 }

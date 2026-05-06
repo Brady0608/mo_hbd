@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import { motion, useInView, AnimatePresence } from 'framer-motion'
+import { motion, useInView, AnimatePresence, useMotionValue, useTransform } from 'framer-motion'
 import { Lock, Play, X, Key, Info } from 'lucide-react'
 import { ALL_WISHES as WISHES_DATA } from '../data/wishes'
 import { RARITY_DISPLAY, RARITY_RATES, POOL_INFO } from '../data/config'
@@ -107,11 +107,10 @@ function WishCard({ wish, isUnlocked, assignedRarity, onClick }) {
           style={{ background: `${wish.color}55`, backdropFilter: 'blur(4px)' }}>
           {(() => {
             const t = detectMediaType(wish.media ?? wish.video ?? null)
-            return t === 'audio'
-              ? <><span className="text-[8px]">🎵</span><span className="text-[8px] font-rpg font-bold">聆聽</span></>
-              : t !== 'none'
-                ? <><Play size={9} /><span className="text-[8px] font-rpg font-bold">觀看</span></>
-                : <span className="text-[8px] font-rpg font-bold">閱讀</span>
+            if (t === 'audio') return <><span className="text-[8px]">🎵</span><span className="text-[8px] font-rpg font-bold">聆聽</span></>
+            if (t === 'image') return <><span className="text-[8px]">🖼</span><span className="text-[8px] font-rpg font-bold">查看</span></>
+            if (t !== 'none')  return <><Play size={9} /><span className="text-[8px] font-rpg font-bold">觀看</span></>
+            return <span className="text-[8px] font-rpg font-bold">閱讀</span>
           })()}
         </div>
       )}
@@ -215,16 +214,85 @@ function AudioPlayer({ src, color, emoji, avatar }) {
   )
 }
 
+/* ─── LightboxImage ──────────────────────────────────────────────────────── */
+function LightboxImage({ src, alt, onClose }) {
+  const x = useMotionValue(0)
+  const y = useMotionValue(0)
+  const isDragging = useRef(false)
+
+  // Esc 關閉
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <>
+      {/* 背景 */}
+      <motion.div
+        key="lb-bg"
+        className="fixed inset-0 z-600 bg-black/85 backdrop-blur-sm"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+      />
+
+      {/* 圖片容器（overflow hidden 防止圖片拖出視窗太遠） */}
+      <motion.div
+        key="lb-wrap"
+        className="fixed inset-0 z-601 flex items-center justify-center overflow-hidden pointer-events-none"
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        transition={{ duration: 0.18 }}
+      >
+        <motion.img
+          src={src}
+          alt={alt}
+          drag
+          dragMomentum={false}
+          dragElastic={0.12}
+          style={{ x, y, maxHeight: '88vh', maxWidth: '88vw', touchAction: 'none' }}
+          className="object-contain rounded-xl shadow-2xl pointer-events-auto select-none"
+          initial={{ scale: 0.88, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.92, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+          onDragStart={() => { isDragging.current = true }}
+          onDragEnd={() => { setTimeout(() => { isDragging.current = false }, 50) }}
+          onClick={() => { if (!isDragging.current) onClose() }}
+          cursor="grab"
+          whileDrag={{ cursor: 'grabbing' }}
+        />
+      </motion.div>
+
+      {/* 操作提示 */}
+      <motion.div
+        key="lb-hint"
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-601 pointer-events-none"
+        initial={{ opacity: 0, y: 8 }} animate={{ opacity: 0.7, y: 0 }} exit={{ opacity: 0 }}
+        transition={{ delay: 0.3, duration: 0.3 }}
+      >
+        <span className="text-[11px] font-rpg px-3 py-1.5 rounded-full"
+          style={{ background: 'rgba(0,0,0,0.55)', color: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)' }}>
+          拖曳移動 · 點擊關閉
+        </span>
+      </motion.div>
+    </>
+  )
+}
+
 /* ─── WishRevealModal ─────────────────────────────────────────────────────── */
 function WishRevealModal({ wish, isNew, onClose }) {
   const cfg = wish ? (RARITY_CFG[wish.assignedRarity ?? 'R'] ?? RARITY_CFG.R) : null
   const [mediaReady, setMediaReady] = useState(false)
   const [videoError, setVideoError] = useState(false)
   const [videoAspect, setVideoAspect] = useState(null) // width/height ratio
+  const [lightbox,   setLightbox]   = useState(false)
   // 為了向下相容，同時支援舊的 video 欄位
   const media     = wish?.media ?? wish?.video ?? null
   const mediaType = wish ? detectMediaType(media) : 'none'
-  useEffect(() => { if (wish) { setMediaReady(false); setVideoError(false); setVideoAspect(null) } }, [wish?.id])
+  useEffect(() => { if (wish) { setMediaReady(false); setVideoError(false); setVideoAspect(null); setLightbox(false) } }, [wish?.id])
+
 
   // 依長寬比動態計算媒體區高度（容器寬度約 352px = max-w-sm 384 - padding 32）
   const CONTAINER_W = 352
@@ -270,7 +338,7 @@ function WishRevealModal({ wish, isNew, onClose }) {
               <div
                 className="relative overflow-hidden"
                 style={{
-                  height: mediaType === 'audio' ? 260 : (mediaType === 'video' && videoReady) ? videoH : videoReady ? 220 : 200,
+                  height: mediaType === 'audio' ? 260 : mediaType === 'image' ? 240 : (mediaType === 'video' && videoReady) ? videoH : videoReady ? 220 : 200,
                   background: `linear-gradient(145deg, ${wish.color}18, ${wish.color}42)`,
                   transition: 'height 0.3s ease',
                 }}
@@ -281,6 +349,37 @@ function WishRevealModal({ wish, isNew, onClose }) {
                 {/* 錄音播放器（audio 類型直接顯示，不需點擊解鎖） */}
                 {mediaType === 'audio' && (
                   <AudioPlayer src={media} color={wish.color} emoji={wish.emoji} avatar={wish.avatar} />
+                )}
+
+                {/* 圖片（直接顯示，點擊放大） */}
+                {mediaType === 'image' && (
+                  <>
+                    <motion.img
+                      src={media}
+                      alt={`${wish.name}的祝福`}
+                      className="absolute inset-0 w-full h-full object-contain cursor-zoom-in"
+                      onClick={() => setLightbox(true)}
+                      whileHover={{ scale: 1.03 }}
+                      transition={{ duration: 0.2 }}
+                    />
+                    <div className="absolute bottom-2 right-2 pointer-events-none">
+                      <span className="text-[9px] font-rpg px-2 py-0.5 rounded-full"
+                        style={{ background: 'rgba(61,48,39,0.45)', color: 'rgba(255,252,235,0.85)', backdropFilter: 'blur(4px)' }}>
+                        點擊放大
+                      </span>
+                    </div>
+
+                    {/* Lightbox */}
+                    <AnimatePresence>
+                      {lightbox && (
+                        <LightboxImage
+                          src={media}
+                          alt={`${wish.name}的祝福`}
+                          onClose={() => setLightbox(false)}
+                        />
+                      )}
+                    </AnimatePresence>
+                  </>
                 )}
 
                 {/* YouTube iframe */}
@@ -318,7 +417,7 @@ function WishRevealModal({ wish, isNew, onClose }) {
                 )}
 
                 {/* 占位圖（youtube / video 未播放 / 無媒體） */}
-                {mediaType !== 'audio' && !videoReady && (
+                {mediaType !== 'audio' && mediaType !== 'image' && !videoReady && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
                     {wish.avatar
                       ? <img src={wish.avatar} alt={wish.name}
