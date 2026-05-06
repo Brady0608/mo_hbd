@@ -219,10 +219,19 @@ function AudioPlayer({ src, color, emoji, avatar }) {
 function WishRevealModal({ wish, isNew, onClose }) {
   const cfg = wish ? (RARITY_CFG[wish.assignedRarity ?? 'R'] ?? RARITY_CFG.R) : null
   const [mediaReady, setMediaReady] = useState(false)
+  const [videoError, setVideoError] = useState(false)
+  const [videoAspect, setVideoAspect] = useState(null) // width/height ratio
   // 為了向下相容，同時支援舊的 video 欄位
   const media     = wish?.media ?? wish?.video ?? null
   const mediaType = wish ? detectMediaType(media) : 'none'
-  useEffect(() => { if (wish) setMediaReady(false) }, [wish?.id])
+  useEffect(() => { if (wish) { setMediaReady(false); setVideoError(false); setVideoAspect(null) } }, [wish?.id])
+
+  // 依長寬比動態計算媒體區高度（容器寬度約 352px = max-w-sm 384 - padding 32）
+  const CONTAINER_W = 352
+  const MAX_VIDEO_H = 420
+  const videoH = videoAspect
+    ? Math.min(MAX_VIDEO_H, Math.round(CONTAINER_W / videoAspect))
+    : 220
 
   // assignedRarity 由 currentPick 或 gallery 點擊傳入
   const rarity = wish?.assignedRarity ?? 'R'
@@ -261,7 +270,7 @@ function WishRevealModal({ wish, isNew, onClose }) {
               <div
                 className="relative overflow-hidden"
                 style={{
-                  height: mediaType === 'audio' ? 260 : videoReady ? 220 : 200,
+                  height: mediaType === 'audio' ? 260 : (mediaType === 'video' && videoReady) ? videoH : videoReady ? 220 : 200,
                   background: `linear-gradient(145deg, ${wish.color}18, ${wish.color}42)`,
                   transition: 'height 0.3s ease',
                 }}
@@ -282,9 +291,30 @@ function WishRevealModal({ wish, isNew, onClose }) {
                 )}
 
                 {/* 本地影片 */}
-                {mediaType === 'video' && videoReady && (
-                  <video src={media} className="absolute inset-0 w-full h-full object-cover"
-                    autoPlay controls playsInline />
+                {mediaType === 'video' && videoReady && !videoError && (
+                  <video
+                    key={media}
+                    ref={node => { if (node) node.play().catch(() => {}) }}
+                    className="absolute inset-0 w-full h-full"
+                    style={{ objectFit: videoAspect && videoAspect < 1 ? 'contain' : 'cover' }}
+                    controls playsInline
+                    onLoadedMetadata={e => {
+                      const { videoWidth, videoHeight } = e.target
+                      if (videoWidth && videoHeight) setVideoAspect(videoWidth / videoHeight)
+                    }}
+                    onError={() => setVideoError(true)}
+                  >
+                    <source src={media} type="video/mp4" />
+                  </video>
+                )}
+                {mediaType === 'video' && videoReady && videoError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    <span className="text-4xl">🎬</span>
+                    <p className="text-[11px] font-rpg opacity-55 text-center px-4" style={{ color: wish.color }}>
+                      影片格式不支援<br />
+                      請用 HandBrake 將檔案轉成 H.264 MP4
+                    </p>
+                  </div>
                 )}
 
                 {/* 占位圖（youtube / video 未播放 / 無媒體） */}

@@ -27,14 +27,14 @@
 export const ALL_WISHES = [
   {
     id: 1,
-    name: '小明',
+    name: 'YoYo',
     emoji: '🌿',
-    avatar: null,
+    avatar: './images/wishes/yoyo.png',
     color: '#7A918D',
     forceRarity: null,              // null = 隨機抽籤
-    from: '國中死黨',
-    media: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    message: '好友相伴，是人生最大的財富。生日快樂，願你每天都充滿能量！',
+    from: '體驗中心',
+    media: './videos/wishes/yoyo.mp4',
+    message: '',
   },
   {
     id: 2,
