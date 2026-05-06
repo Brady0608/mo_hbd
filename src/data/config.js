@@ -16,11 +16,20 @@
  */
 
 export const RARITY_RATES = {
-  R:   40,   // 普通
-  SR:  30,   // 稀有
-  SSR: 20,   // 超稀有
-  UR:  10,   // 極稀有
+  R:   70,   // 普通
+  SR:  27,   // 稀有
+  SSR: 2,   // 超稀有
+  UR:  1,   // 極稀有
 }
+
+// ssrPityCounter 累積到此值時，該抽強制從 SSR 池出貨（第 50 抽保底，不含 UR）
+export const PITY_THRESHOLD = 49
+
+// urPityCounter 累積到此值時，可手動兌換一張 UR（200 抽保底）
+export const UR_PITY_THRESHOLD = 200
+
+// 卡池最低人數保障（不足則從隨機好友自動補入）
+export const POOL_GUARANTEE = { UR: 1, SSR: 2 }
 
 /**
  * 各稀有度顯示設定（邊框色 / Badge 樣式 / 光暈）

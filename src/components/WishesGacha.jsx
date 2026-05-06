@@ -4,7 +4,7 @@ import { Lock, Play, X, Key } from 'lucide-react'
 import { ALL_WISHES as WISHES_DATA } from '../data/wishes'
 import { RARITY_DISPLAY } from '../data/config'
 import { detectMediaType } from '../utils/media'
-import { drawRarity } from '../utils/gacha'
+import { useGachaSystem } from '../hooks/useGachaSystem'
 
 /* ─── 設計 Token ──────────────────────────────────────────────────────────── */
 const C = {
@@ -518,53 +518,191 @@ function WishRevealModal({ wish, isNew, onClose }) {
   )
 }
 
+/* ─── GachaDebugPanel ────────────────────────────────────────────────────────
+   純文字測試面板，方便確認 state 是否正確更新。
+   ─────────────────────────────────────────────────────────────────────────── */
+const RARITY_COLOR = { UR: '#7A5AB8', SSR: '#A05040', SR: '#8A6940', R: '#5A716D' }
+
+function GachaDebugPanel({ totalPulls, ssrPityCounter, ssrPityProgress,
+                            urPityCounter, urPityProgress, canClaimUR,
+                            inventory, pools, rarityMap, lastResults,
+                            onSingle, onTen, onClaimUR, onReset }) {
+  const [open, setOpen] = useState(false)
+
+  const wishById = Object.fromEntries(ALL_WISHES.map(w => [w.id, w]))
+
+  return (
+    <div className="w-full max-w-5xl px-4 mt-8">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="font-rpg text-[10px] tracking-widest px-3 py-1 rounded border"
+        style={{ borderColor: `${C.leather}35`, color: C.leatherDeep, background: `${C.leather}08` }}
+      >
+        {open ? '▲' : '▼'} DEV · 抽蛋狀態檢查
+      </button>
+
+      {open && (
+        <div
+          className="mt-2 rounded-xl p-4 font-mono text-[11px] leading-relaxed"
+          style={{ background: 'rgba(61,48,39,0.05)', border: `1px dashed ${C.leather}35`, color: C.inkMid }}
+        >
+          {/* ── 狀態列 ── */}
+          <div className="font-bold mb-2 flex flex-wrap gap-x-4 gap-y-0.5" style={{ color: C.ink }}>
+            <span>totalPulls: {totalPulls}</span>
+            <span>
+              SSR保底: {ssrPityCounter} / 49 &nbsp;({(ssrPityProgress * 100).toFixed(0)}%)
+              {ssrPityCounter >= 49 && <span style={{ color: '#A05040' }}> ← 本抽保底！</span>}
+            </span>
+            <span style={{ color: canClaimUR ? '#7A5AB8' : undefined }}>
+              UR保底: {urPityCounter} / 200 &nbsp;({(urPityProgress * 100).toFixed(0)}%)
+              {canClaimUR && ' ← 可領取！'}
+            </span>
+          </div>
+
+          {/* ── 操作按鈕 ── */}
+          <div className="flex gap-2 mb-3 flex-wrap">
+            {[
+              { label: '單抽測試', fn: onSingle,  color: C.forest },
+              { label: '十連抽測試', fn: onTen,   color: C.leather },
+              { label: '重置卡池', fn: onReset,   color: C.rose },
+            ].map(({ label, fn, color }) => (
+              <button key={label} onClick={fn}
+                className="px-3 py-1 rounded text-white text-[10px] font-rpg"
+                style={{ background: color }}>
+                {label}
+              </button>
+            ))}
+            <button
+              onClick={onClaimUR}
+              disabled={!canClaimUR}
+              className="px-3 py-1 rounded text-[10px] font-rpg"
+              style={{
+                background: canClaimUR ? '#7A5AB8' : 'rgba(122,90,184,0.25)',
+                color: canClaimUR ? '#fff' : '#9B7FD4',
+                cursor: canClaimUR ? 'pointer' : 'not-allowed',
+              }}>
+              領取 UR 保底 {canClaimUR ? '✦' : `(${urPityCounter}/200)`}
+            </button>
+          </div>
+
+          {/* ── 上次抽卡結果 ── */}
+          {lastResults.length > 0 && (
+            <div className="mb-3">
+              <span className="font-bold" style={{ color: C.ink }}>上次結果：</span>
+              {lastResults.map((r, i) => (
+                <span key={i}
+                  className="inline-block mr-1.5 px-1.5 py-0.5 rounded text-[10px]"
+                  style={{
+                    background: `${RARITY_COLOR[r.rarity]}22`,
+                    border: `1px solid ${RARITY_COLOR[r.rarity]}55`,
+                    color: RARITY_COLOR[r.rarity],
+                  }}>
+                  {r.wish.name} [{r.rarity}]{r.isNew ? ' ★NEW' : ''}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* ── 卡池分布 ── */}
+          <p className="font-bold mb-1" style={{ color: C.ink }}>卡池分布（HIGH = UR+SSR 共池）：</p>
+          {['HIGH', 'SR', 'R'].map(poolKey => (
+            <div key={poolKey} className="mb-1">
+              <span style={{ color: poolKey === 'HIGH' ? '#7A5AB8' : poolKey === 'SR' ? '#8A6940' : '#5A716D' }}>
+                [{poolKey}]&nbsp;
+              </span>
+              {(pools[poolKey] ?? []).map(id => {
+                const w = wishById[id]
+                const r = rarityMap[id]
+                return (
+                  <span key={id} className="mr-2"
+                    style={{ color: RARITY_COLOR[r] }}>
+                    {w?.name}({r})
+                  </span>
+                )
+              })}
+            </div>
+          ))}
+
+          {/* ── 圖鑑 / inventory ── */}
+          <p className="font-bold mt-2 mb-1" style={{ color: C.ink }}>圖鑑（已解鎖次數）：</p>
+          <div className="flex flex-wrap gap-x-3">
+            {ALL_WISHES.map(w => {
+              const cnt = inventory[w.id] ?? 0
+              return (
+                <span key={w.id} style={{ color: cnt > 0 ? RARITY_COLOR[rarityMap[w.id]] : '#aaa' }}>
+                  {w.name} ×{cnt}
+                </span>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── WishesGacha (main) ──────────────────────────────────────────────────── */
 export default function WishesGacha() {
   const titleRef  = useRef(null)
   const titleInView = useInView(titleRef, { once: true, margin: '-40px' })
 
-  // unlockedMap: { [wishId]: assignedRarity } — 同時記錄「已解鎖」和「當次抽到的稀有度」
-  const [unlockedMap,  setUnlockedMap]  = useState({})
-  const [pullPhase,    setPullPhase]    = useState('idle')
-  const [currentPick,  setCurrentPick]  = useState(null)  // 含 assignedRarity
-  const [revealWish,   setRevealWish]   = useState(null)  // 含 assignedRarity
-  const [isNewReveal,  setIsNewReveal]  = useState(false)
+  const {
+    totalPulls, ssrPityCounter, ssrPityProgress,
+    urPityCounter, urPityProgress, canClaimUR,
+    inventory, pools, rarityMap,
+    isUnlocked, unlockedCount,
+    drawSingle, drawTen, claimUR,
+    unlockAll, resetGacha,
+  } = useGachaSystem()
 
-  const available   = ALL_WISHES.filter(w => !(w.id in unlockedMap))
-  const unlockedCnt = Object.keys(unlockedMap).length
-  const allUnlocked = unlockedCnt === ALL_WISHES.length
+  const [pullPhase,    setPullPhase]    = useState('idle')
+  const [currentPick,  setCurrentPick]  = useState(null)
+  const [revealWish,   setRevealWish]   = useState(null)
+  const [isNewReveal,  setIsNewReveal]  = useState(false)
+  const [lastResults,  setLastResults]  = useState([])   // 供 debug panel 顯示
+
+  const remainingCount = ALL_WISHES.length - unlockedCount
+  const allUnlocked    = unlockedCount === ALL_WISHES.length
 
   useEffect(() => {
     let t
     if (pullPhase === 'shaking')  t = setTimeout(() => setPullPhase('dropping'), 700)
     if (pullPhase === 'dropping') t = setTimeout(() => setPullPhase('opening'),  900)
     if (pullPhase === 'opening')  t = setTimeout(() => {
-      if (currentPick) {
-        setUnlockedMap(prev => ({ ...prev, [currentPick.id]: currentPick.assignedRarity }))
-        setRevealWish(currentPick)
-        setIsNewReveal(true)
-      }
+      if (currentPick) { setRevealWish(currentPick); setIsNewReveal(true) }
       setPullPhase('idle')
     }, 480)
     return () => clearTimeout(t)
   }, [pullPhase, currentPick])
 
+  // 單抽（走扭蛋機動畫）
   const handlePull = () => {
-    if (pullPhase !== 'idle' || available.length === 0) return
-    const wish   = available[Math.floor(Math.random() * available.length)]
-    const rarity = drawRarity(wish.forceRarity)       // ← 抽籤決定稀有度
-    setCurrentPick({ ...wish, assignedRarity: rarity })
+    if (pullPhase !== 'idle') return
+    const [result] = drawSingle()
+    setCurrentPick({ ...result.wish, assignedRarity: result.rarity })
+    setLastResults([result])
     setPullPhase('shaking')
   }
 
-  const handleUnlockAll = () => {
-    const all = {}
-    ALL_WISHES.forEach(w => {
-      // 已解鎖的保留原稀有度，未解鎖的現在抽籤
-      all[w.id] = unlockedMap[w.id] ?? drawRarity(w.forceRarity)
-    })
-    setUnlockedMap(all)
+  // 單抽（debug 用，不走動畫）
+  const handleDebugSingle = () => {
+    const results = drawSingle()
+    setLastResults(results)
   }
+
+  // 十連抽（debug 用）
+  const handleDebugTen = () => {
+    const results = drawTen()
+    setLastResults(results)
+  }
+
+  // UR 保底領取（debug 用）
+  const handleClaimUR = () => {
+    const result = claimUR()
+    if (result) setLastResults([result])
+  }
+
+  const handleUnlockAll = () => unlockAll()
 
   return (
     <section
@@ -609,11 +747,11 @@ export default function WishesGacha() {
           <motion.div initial={{ opacity: 0, x: -28 }} whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }} transition={{ duration: 0.6 }}
             className="flex flex-col items-center w-full lg:w-auto">
-            <GachaMachine remaining={available.length} phase={pullPhase} pick={currentPick} onPull={handlePull} />
-            {unlockedCnt > 0 && (
+            <GachaMachine remaining={remainingCount} phase={pullPhase} pick={currentPick} onPull={handlePull} />
+            {unlockedCount > 0 && (
               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className="mt-4 text-xs font-rpg tracking-wider text-center" style={{ color: C.leatherDeep }}>
-                已解鎖 {unlockedCnt} / {ALL_WISHES.length} 個祝福
+                已解鎖 {unlockedCount} / {ALL_WISHES.length} 個祝福
               </motion.p>
             )}
           </motion.div>
@@ -628,7 +766,7 @@ export default function WishesGacha() {
               <div>
                 <h3 className="font-rpg text-sm tracking-widest" style={{ color: C.leatherDeep }}>✦ 祝福清單</h3>
                 <p className="text-[10px] opacity-60 mt-0.5 font-rpg" style={{ color: C.inkMid }}>
-                  {unlockedCnt} / {ALL_WISHES.length} 已解鎖 · 點擊已解鎖卡片可重播
+                  {unlockedCount} / {ALL_WISHES.length} 已解鎖 · 點擊已解鎖卡片可重播
                 </p>
               </div>
               {!allUnlocked && (
@@ -654,8 +792,8 @@ export default function WishesGacha() {
                   viewport={{ once: true }} transition={{ duration: 0.38, delay: i * 0.06 }}>
                   <WishCard
                     wish={wish}
-                    isUnlocked={wish.id in unlockedMap}
-                    assignedRarity={unlockedMap[wish.id]}
+                    isUnlocked={isUnlocked(wish.id)}
+                    assignedRarity={rarityMap[wish.id]}
                     onClick={w => { setRevealWish(w); setIsNewReveal(false) }}
                   />
                 </motion.div>
@@ -678,6 +816,24 @@ export default function WishesGacha() {
       </div>
 
       <WishRevealModal wish={revealWish} isNew={isNewReveal} onClose={() => setRevealWish(null)} />
+
+      {/* ── 開發測試面板 ──────────────────────────────────────────── */}
+      <GachaDebugPanel
+        totalPulls={totalPulls}
+        ssrPityCounter={ssrPityCounter}
+        ssrPityProgress={ssrPityProgress}
+        urPityCounter={urPityCounter}
+        urPityProgress={urPityProgress}
+        canClaimUR={canClaimUR}
+        inventory={inventory}
+        pools={pools}
+        rarityMap={rarityMap}
+        lastResults={lastResults}
+        onSingle={handleDebugSingle}
+        onTen={handleDebugTen}
+        onClaimUR={handleClaimUR}
+        onReset={resetGacha}
+      />
     </section>
   )
 }
