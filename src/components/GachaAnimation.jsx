@@ -253,7 +253,7 @@ function ResultCard({ result, inventory, onClick }) {
 
       {/* Rarity badge */}
       <div className="absolute top-1.5 left-1.5">
-        <span className={`text-[9px] font-rpg font-bold px-1.5 py-0.5 rounded-full ${cfg.badge}`}>
+        <span className={`text-[18px] font-rpg font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>
           {rarity}
         </span>
       </div>
