@@ -94,14 +94,14 @@ export const ALL_WISHES = [
   },
   {
     id: 7,
-    name: '阿媽',
+    name: '鎔瑄',
     emoji: '💝',
-    avatar: null,
+    avatar: './images/avatar/rongxuan.jpg',
     color: '#C4848E',
     forceRarity: 'null',              // 阿媽永遠是 UR！
-    from: '家人',
+    from: '體驗中心',
     media: './audio/wishes/grandma.mp3',
-    message: '乖孫生日快樂！出門要穿多一點，要吃飽睡好，阿媽最愛你！',
+    message: '生日快樂！',
   },
   {
     id: 8,
