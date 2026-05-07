@@ -139,27 +139,37 @@ function MemoryNode({ memory, position, onOpen }) {
 
       {/* 主圓 */}
       <div
-        className="relative w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-[0_4px_16px_rgba(0,0,0,0.16)]"
+        className="relative w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-xl shadow-[0_4px_16px_rgba(0,0,0,0.16)] shrink-0"
         style={{
           background: `linear-gradient(145deg, ${memory.color}28, ${memory.color}55)`,
           border: `2.5px solid ${memory.color}`,
         }}
       >
-        {memory.emoji}
+        {(() => {
+          if (memory.photo) return (
+            <img src={memory.photo} alt="" className="w-full h-full object-cover" />
+          )
+          const t = detectMediaType(memory.media)
+          if (t === 'video') return (
+            <video
+              src={memory.media}
+              className="w-full h-full object-cover"
+              preload="metadata"
+              muted playsInline
+              style={{ pointerEvents: 'none' }}
+            />
+          )
+          if (t === 'image') return (
+            <img src={memory.media} alt="" className="w-full h-full object-cover" />
+          )
+          return memory.emoji
+        })()}
       </div>
 
-      {/* 年份 badge — 上方 */}
-      <div
-        className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap font-rpg text-[10px] font-bold px-2 py-0.5 rounded-full"
-        style={{ background: `${memory.color}1E`, color: memory.color, border: `1px solid ${memory.color}55` }}
-      >
-        {memory.year}
-      </div>
 
-      {/* 標題標籤 — 側邊（桌機） */}
+      {/* 標題標籤 — 右側（桌機） */}
       <div
-        className={`absolute top-1/2 -translate-y-1/2 pointer-events-none hidden sm:block
-          ${isRight ? 'right-[calc(100%+12px)]' : 'left-[calc(100%+12px)]'}`}
+        className="absolute top-1/2 -translate-y-1/2 left-[calc(100%+12px)] pointer-events-none hidden sm:block"
       >
         <div
           className="px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium"
@@ -174,11 +184,19 @@ function MemoryNode({ memory, position, onOpen }) {
 
 /* ─── MemoryModal ─────────────────────────────────────────────────────────── */
 function MemoryModal({ memory, onClose }) {
-  const [showMedia, setShowMedia] = useState(false)
+  const [showYoutube, setShowYoutube] = useState(false)
+  const [videoAspect, setVideoAspect] = useState(null)
+  const [videoError,  setVideoError]  = useState(false)
   const mediaType = memory ? detectMediaType(memory.media) : 'none'
-  const hasMedia  = mediaType !== 'none'
-  // 當切換不同節點時，重置播放狀態
-  useEffect(() => { setShowMedia(false) }, [memory?.id])
+  // 當切換不同節點時，重置狀態
+  useEffect(() => { setShowYoutube(false); setVideoAspect(null); setVideoError(false) }, [memory?.id])
+
+  // 依長寬比動態計算高度（容器寬度約 352px）
+  const CONTAINER_W = 352
+  const MAX_VIDEO_H = 420
+  const videoH = videoAspect
+    ? Math.min(MAX_VIDEO_H, Math.round(CONTAINER_W / videoAspect))
+    : 208
 
   return (
     <AnimatePresence>
@@ -216,7 +234,9 @@ function MemoryModal({ memory, onClose }) {
               <div
                 className="relative overflow-hidden"
                 style={{
-                  height: showMedia && mediaType === 'audio' ? 260 : 208,
+                  height: mediaType === 'audio' ? 260
+                    : mediaType === 'video' ? videoH
+                    : 208,
                   transition: 'height 0.3s ease',
                   background: `linear-gradient(145deg, ${memory.color}18, ${memory.color}42)`,
                 }}
@@ -224,85 +244,90 @@ function MemoryModal({ memory, onClose }) {
                 <div className="absolute inset-0 pointer-events-none"
                   style={{ background: `radial-gradient(circle at 40% 35%, ${memory.color}28, transparent 62%)` }} />
 
-                {/* ① 顯示媒體（影片 / 音訊） */}
-                {showMedia && mediaType === 'youtube' && (
+                {/* 優先順序：photo → video → image → emoji（與節點圓形一致） */}
+
+                {/* 1. photo */}
+                {memory.photo && (
+                  <img src={memory.photo} alt={memory.title}
+                    className="absolute inset-0 w-full h-full object-cover" />
+                )}
+
+                {/* 2. video（直接顯示，自動播放） */}
+                {!memory.photo && mediaType === 'video' && !videoError && (
+                  <video
+                    key={memory.media}
+                    ref={node => { if (node) node.play().catch(() => {}) }}
+                    className="absolute inset-0 w-full h-full"
+                    style={{ objectFit: videoAspect && videoAspect < 1 ? 'contain' : 'cover' }}
+                    controls playsInline
+                    onLoadedMetadata={e => {
+                      const { videoWidth, videoHeight } = e.target
+                      if (videoWidth && videoHeight) setVideoAspect(videoWidth / videoHeight)
+                    }}
+                    onError={() => setVideoError(true)}
+                  >
+                    <source src={memory.media} type="video/mp4" />
+                  </video>
+                )}
+                {!memory.photo && mediaType === 'video' && videoError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+                    <span className="text-4xl">🎬</span>
+                    <p className="text-[11px] font-rpg opacity-55 text-center px-4" style={{ color: memory.color }}>
+                      影片格式不支援<br />請用 HandBrake 將檔案轉成 H.264 MP4
+                    </p>
+                  </div>
+                )}
+
+                {/* 3. image（直接顯示） */}
+                {!memory.photo && mediaType === 'image' && (
+                  <img src={memory.media} alt={memory.title}
+                    className="absolute inset-0 w-full h-full object-contain" />
+                )}
+
+                {/* 4. audio（直接顯示播放器） */}
+                {mediaType === 'audio' && (
+                  <MemoryAudioPlayer src={memory.media} color={memory.color} emoji={memory.emoji} />
+                )}
+
+                {/* 5. youtube（點擊觸發，避免 iframe 效能問題） */}
+                {!memory.photo && mediaType === 'youtube' && !showYoutube && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                    <motion.span className="text-7xl"
+                      initial={{ scale: 0.45, rotate: -12 }} animate={{ scale: 1, rotate: 0 }}
+                      transition={{ ...SPRING, delay: 0.08 }}>
+                      {memory.emoji}
+                    </motion.span>
+                    <motion.button
+                      onClick={() => setShowYoutube(true)}
+                      whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.90, transition: SPRING }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-rpg font-semibold"
+                      style={{ background: 'rgba(255,252,235,0.88)', backdropFilter: 'blur(8px)', border: `1.5px solid ${memory.color}55`, color: memory.color }}
+                    >
+                      <Play size={11} /> 播放影片
+                    </motion.button>
+                  </div>
+                )}
+                {!memory.photo && mediaType === 'youtube' && showYoutube && (
                   <iframe src={`${memory.media}?autoplay=1`}
                     className="absolute inset-0 w-full h-full"
                     allow="autoplay; encrypted-media" allowFullScreen title={memory.title} />
                 )}
-                {showMedia && mediaType === 'video' && (
-                  <video src={memory.media} className="absolute inset-0 w-full h-full object-cover"
-                    autoPlay controls playsInline />
-                )}
-                {showMedia && mediaType === 'audio' && (
-                  <MemoryAudioPlayer src={memory.media} color={memory.color} emoji={memory.emoji} />
-                )}
 
-                {/* ② 顯示照片（或 emoji 占位）＋ 可選播放按鈕 */}
-                {!showMedia && (
-                  <>
-                    {memory.photo
-                      ? <img src={memory.photo} alt={memory.title} className="absolute inset-0 w-full h-full object-cover" />
-                      : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
-                          <motion.span className="text-7xl"
-                            initial={{ scale: 0.45, rotate: -12 }} animate={{ scale: 1, rotate: 0 }}
-                            transition={{ ...SPRING, delay: 0.08 }}>
-                            {memory.emoji}
-                          </motion.span>
-                          <span className="font-rpg text-xs tracking-widest opacity-55" style={{ color: memory.color }}>
-                            {memory.subtitle}
-                          </span>
-                          {!hasMedia && (
-                            <div className="absolute bottom-2 right-3 text-[10px] opacity-30 font-rpg" style={{ color: memory.color }}>
-                              [ 照片即將上線 ]
-                            </div>
-                          )}
-                        </div>
-                      )
-                    }
-
-                    {/* 播放按鈕（有媒體時才顯示） */}
-                    {hasMedia && (
-                      <motion.button
-                        onClick={() => setShowMedia(true)}
-                        whileHover={{ scale: 1.08 }}
-                        whileTap={{ scale: 0.90, transition: SPRING }}
-                        className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-rpg font-semibold"
-                        style={{
-                          background: 'rgba(255,252,235,0.88)',
-                          backdropFilter: 'blur(8px)',
-                          border: `1.5px solid ${memory.color}55`,
-                          color: memory.color,
-                          boxShadow: `0 2px 8px ${memory.color}30`,
-                        }}
-                      >
-                        {mediaType === 'audio'
-                          ? <><span>🎵</span> 播放錄音</>
-                          : <><Play size={11} /> 播放影片</>
-                        }
-                      </motion.button>
-                    )}
-                  </>
-                )}
-
-                {/* 返回照片按鈕（播放媒體時顯示） */}
-                {showMedia && memory.photo && (
-                  <motion.button
-                    onClick={() => setShowMedia(false)}
-                    whileHover={{ scale: 1.05 }}
-                    className="absolute top-2 left-2 text-[10px] font-rpg px-2 py-1 rounded-full"
-                    style={{ background: 'rgba(255,252,235,0.80)', backdropFilter: 'blur(6px)', color: memory.color }}
-                  >
-                    ← 照片
-                  </motion.button>
+                {/* 6. 無任何媒體：emoji */}
+                {!memory.photo && mediaType === 'none' && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <motion.span className="text-7xl"
+                      initial={{ scale: 0.45, rotate: -12 }} animate={{ scale: 1, rotate: 0 }}
+                      transition={{ ...SPRING, delay: 0.08 }}>
+                      {memory.emoji}
+                    </motion.span>
+                  </div>
                 )}
               </div>
 
               {/* Content */}
               <div className="p-5">
                 <div className="flex items-center gap-2">
-                  <span className="rpg-badge">{memory.year}</span>
                   <span className="text-[10px] font-rpg font-bold px-2 py-0.5 rounded-full"
                     style={{ background: `${memory.color}1E`, color: memory.color, border: `1px solid ${memory.color}50` }}>
                     Memory
@@ -314,10 +339,7 @@ function MemoryModal({ memory, onClose }) {
                 <div className="ornament-divider my-3">
                   <span className="text-[8px]" style={{ color: memory.color }}>✦</span>
                 </div>
-                <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: C.inkMid }}>
-                  {memory.desc}
-                </p>
-                <div className="mt-4 flex flex-wrap gap-1.5">
+                <div className="mt-4 flex flex-wrap gap-1.5 justify-center">
                   {memory.tags.map(tag => (
                     <span key={tag} className="text-[10px] font-rpg px-2 py-0.5 rounded-full"
                       style={{ background: `${memory.color}18`, color: memory.color, border: `1px solid ${memory.color}45` }}>

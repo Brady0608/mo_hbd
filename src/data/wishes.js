@@ -100,8 +100,8 @@ export const ALL_WISHES = [
     color: '#C4848E',
     forceRarity: 'null',              // 阿媽永遠是 UR！
     from: '體驗中心',
-    media: './audio/wishes/grandma.mp3',
-    message: '生日快樂！',
+    media: './images/wishes/rongxuan.png',
+    message: '生日快樂！不要讓自己太累！喝酒！？我隨時奉陪到底！',
   },
   {
     id: 8,
