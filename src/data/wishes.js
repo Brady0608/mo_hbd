@@ -112,7 +112,7 @@ export const ALL_WISHES = [
     forceRarity: null,
     from: 'T1機電',
     media: './audio/wishes/joe.m4a',
-    message: '生日快樂！希望未來的日子，你會有更多屬於自己的幸福時光！',
+    message: '生日快樂！希望未來的日子，你會有更多屬於自己的時間！',
   },
 
   /* ── 神秘嘉賓（依序解鎖：解完第1才能解第2，不進入抽卡池）──────── */
