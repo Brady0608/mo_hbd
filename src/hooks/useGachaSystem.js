@@ -5,6 +5,10 @@ import { RARITY_RATES, PITY_THRESHOLD, UR_PITY_THRESHOLD, POOL_GUARANTEE } from 
 // 資料結構版本：pity 邏輯變動時遞增，避免讀到舊格式
 const STORAGE_KEY = 'momo_gacha_v3'
 
+// 神秘嘉賓不進抽卡池
+const GACHA_WISHES = ALL_WISHES.filter(w => !w.isSecret)
+export const SECRET_WISH  = ALL_WISHES.find(w => w.isSecret) ?? null
+
 // HIGH 池包含 UR + SSR 兩種標籤，drawEngine 依稀有度標籤分開處理
 const HIGH_RARITIES = new Set(['UR', 'SSR'])
 
@@ -14,7 +18,7 @@ const HIGH_RARITIES = new Set(['UR', 'SSR'])
    rarityMap = { [id]: 'UR' | 'SSR' | 'SR' | 'R' }
    HIGH 池中同時含 UR 標籤與 SSR 標籤的好友，由 rarityMap 區分。
    ─────────────────────────────────────────────────────────────────────────── */
-function buildPools(wishes, guarantee = POOL_GUARANTEE) {
+function buildPools(wishes = GACHA_WISHES, guarantee = POOL_GUARANTEE) {
   const highForced = []
   const srForced   = []
   const rForced    = []
@@ -140,8 +144,8 @@ export function useGachaSystem() {
   const [_init] = useState(() => {
     const saved = loadStorage()
     if (saved?.pools && saved?.rarityMap) return saved
-    const { pools, rarityMap } = buildPools(ALL_WISHES)
-    return { pools, rarityMap, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {} }
+    const { pools, rarityMap } = buildPools(GACHA_WISHES)
+    return { pools, rarityMap, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {}, secretUnlocked: false }
   })
 
   const [pools,          setPools]          = useState(_init.pools)
@@ -150,19 +154,23 @@ export function useGachaSystem() {
   const [ssrPityCounter, setSsrPityCounter] = useState(_init.ssrPityCounter ?? 0)
   const [urPityCounter,  setUrPityCounter]  = useState(_init.urPityCounter  ?? 0)
   const [inventory,      setInventory]      = useState(_init.inventory      ?? {})
+  const [secretUnlocked, setSecretUnlocked] = useState(_init.secretUnlocked ?? false)
 
   useEffect(() => {
-    saveStorage({ pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory })
-  }, [pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory])
+    saveStorage({ pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory, secretUnlocked })
+  }, [pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory, secretUnlocked])
 
   /* ── 衍生值 ─────────────────────────────────────────────────────────────── */
   const isUnlocked = useCallback((id) => (inventory[id] ?? 0) > 0, [inventory])
   const getCount   = useCallback((id) =>  inventory[id] ?? 0,      [inventory])
 
+  // 只計算一般祝福（不含神秘嘉賓）的解鎖數
   const unlockedCount = useMemo(
-    () => Object.values(inventory).filter(c => c > 0).length,
+    () => GACHA_WISHES.filter(w => (inventory[w.id] ?? 0) > 0).length,
     [inventory]
   )
+
+  const allRegularUnlocked = unlockedCount === GACHA_WISHES.length
 
   const ssrPityProgress = Math.min(1, ssrPityCounter / PITY_THRESHOLD)
   const urPityProgress  = Math.min(1, urPityCounter  / UR_PITY_THRESHOLD)
@@ -238,28 +246,32 @@ export function useGachaSystem() {
     return { wish, rarity: 'UR', isNew }
   }, [pools, rarityMap, inventory, urPityCounter])
 
-  /* ── unlockAll（全覽）──────────────────────────────────────────────────── */
+  /* ── unlockAll（全覽，不解鎖神秘嘉賓）────────────────────────────────── */
   const unlockAll = useCallback(() => {
     setInventory(prev => {
       const next = { ...prev }
-      ALL_WISHES.forEach(w => { if (!next[w.id]) next[w.id] = 1 })
+      GACHA_WISHES.forEach(w => { if (!next[w.id]) next[w.id] = 1 })
       return next
     })
   }, [])
 
+  /* ── unlockSecret（解鎖神秘嘉賓）───────────────────────────────────────── */
+  const unlockSecret = useCallback(() => setSecretUnlocked(true), [])
+
   /* ── resetGacha ─────────────────────────────────────────────────────────── */
   const resetGacha = useCallback(() => {
-    const { pools: p, rarityMap: rm } = buildPools(ALL_WISHES)
+    const { pools: p, rarityMap: rm } = buildPools(GACHA_WISHES)
     setPools(p); setRarityMap(rm)
-    setTotalPulls(0); setSsrPityCounter(0); setUrPityCounter(0); setInventory({})
-    saveStorage({ pools: p, rarityMap: rm, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {} })
+    setTotalPulls(0); setSsrPityCounter(0); setUrPityCounter(0); setInventory({}); setSecretUnlocked(false)
+    saveStorage({ pools: p, rarityMap: rm, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {}, secretUnlocked: false })
   }, [])
 
   return {
     totalPulls, ssrPityCounter, ssrPityProgress,
     urPityCounter, urPityProgress, canClaimUR,
     inventory, pools, rarityMap,
-    isUnlocked, getCount, unlockedCount,
+    isUnlocked, getCount, unlockedCount, allRegularUnlocked,
+    secretUnlocked, unlockSecret,
     drawSingle, drawTen, claimUR,
     unlockAll, resetGacha,
   }

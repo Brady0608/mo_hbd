@@ -4,7 +4,7 @@ import { Lock, Play, X, Key, Info } from 'lucide-react'
 import { ALL_WISHES as WISHES_DATA } from '../data/wishes'
 import { RARITY_DISPLAY, RARITY_RATES, POOL_INFO } from '../data/config'
 import { detectMediaType } from '../utils/media'
-import { useGachaSystem } from '../hooks/useGachaSystem'
+import { useGachaSystem, SECRET_WISH } from '../hooks/useGachaSystem'
 import GachaAnimation from './GachaAnimation'
 
 /* ─── 設計 Token ──────────────────────────────────────────────────────────── */
@@ -23,8 +23,8 @@ const C = {
 
 const SPRING = { type: 'spring', stiffness: 440, damping: 18 }
 
-/* ─── 資料來自 src/data/wishes.js（在那裡新增好友）─────────────────────── */
-const ALL_WISHES = WISHES_DATA
+/* ─── 一般祝福（排除神秘嘉賓）─────────────────────────────────────────── */
+const ALL_WISHES = WISHES_DATA.filter(w => !w.isSecret)
 
 /* 稀有度顯示設定 → 來自 src/data/config.js，可在那裡統一調整 */
 const RARITY_CFG = RARITY_DISPLAY
@@ -211,6 +211,169 @@ function AudioPlayer({ src, color, emoji, avatar }) {
         onEnded={() => { setPlaying(false); setProgress(0); setCurrent(0) }}
       />
     </div>
+  )
+}
+
+/* ─── SecretRevealEffect ─────────────────────────────────────────────────── */
+const PRISM = ['#ff006e','#ff8c00','#ffbe0b','#06d6a0','#3a86ff','#8338ec','#c77dff']
+
+function SecretRevealEffect({ onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 5200); return () => clearTimeout(t) }, [onDone])
+
+  return (
+    <motion.div
+      className="fixed inset-0 z-[400] overflow-hidden flex items-center justify-center"
+      style={{ background: '#050212' }}
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+      exit={{ opacity: 0, transition: { duration: 0.5 } }}
+    >
+      {/* 彩虹極光球 */}
+      {PRISM.map((color, i) => (
+        <motion.div key={i} className="absolute rounded-full pointer-events-none"
+          style={{
+            left: `${[12,75,85,5,50,28,62][i]}%`,
+            top:  `${[18,10,65,70,48,85,30][i]}%`,
+            width: 460, height: 460,
+            background: color, filter: 'blur(90px)',
+            mixBlendMode: 'screen', transform: 'translate(-50%,-50%)',
+          }}
+          animate={{ x: [0,30,-20,10,0], y: [0,-25,30,-10,0], scale: [1,1.3,0.8,1.15,1], opacity: [0.45,0.9,0.55,0.85,0.45] }}
+          transition={{ duration: 3.5 + i * 0.3, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      ))}
+
+      {/* 射線 */}
+      {Array.from({ length: 12 }, (_, i) => i * 30).map((deg, i) => (
+        <motion.div key={i} className="absolute pointer-events-none"
+          style={{
+            width: 2, height: '60vmax',
+            background: `linear-gradient(to top, transparent, ${PRISM[i % PRISM.length]}88, transparent)`,
+            transformOrigin: 'center center', rotate: deg,
+          }}
+          initial={{ scaleY: 0, opacity: 0 }}
+          animate={{ scaleY: [0, 1.2, 1], opacity: [0, 0.7, 0.25] }}
+          transition={{ duration: 1, delay: 0.1 + i * 0.04 }}
+        />
+      ))}
+
+      {/* 中央文字 */}
+      <div className="relative z-10 flex flex-col items-center gap-4 text-center px-6">
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.45, type: 'spring', stiffness: 180, damping: 14 }}
+        >
+          <motion.p
+            className="font-rpg font-bold select-none"
+            style={{ fontSize: 'clamp(2.5rem,11vw,6rem)', color: '#fff', textShadow: '0 0 40px rgba(200,125,255,0.8)' }}
+            animate={{ filter: ['hue-rotate(0deg)', 'hue-rotate(360deg)'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+          >
+            ✦ 神秘嘉賓 ✦
+          </motion.p>
+        </motion.div>
+        <motion.p className="font-rpg text-sm tracking-[0.3em] select-none"
+          style={{ color: 'rgba(255,255,255,0.72)' }}
+          initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.3, duration: 0.6 }}>
+          傳說中的祝福正在降臨...
+        </motion.p>
+      </div>
+
+      <motion.button onClick={onDone}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+        className="absolute bottom-10 right-10 font-rpg text-xs px-4 py-2 rounded-full"
+        style={{ border: '1px solid rgba(255,255,255,0.22)', color: 'rgba(255,255,255,0.65)', background: 'rgba(255,255,255,0.07)' }}>
+        SKIP →
+      </motion.button>
+    </motion.div>
+  )
+}
+
+/* ─── SecretWishCard ─────────────────────────────────────────────────────── */
+function SecretWishCard({ allRegularUnlocked, secretUnlocked, onClick }) {
+  const wish = SECRET_WISH
+  if (!wish) return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.84 }} whileInView={{ opacity: 1, scale: 1 }}
+      viewport={{ once: true }} transition={{ duration: 0.5 }}
+      className="relative rounded-2xl overflow-hidden cursor-pointer"
+      onClick={() => { if (allRegularUnlocked) onClick() }}
+      whileHover={allRegularUnlocked ? { scale: 1.07, y: -3 } : {}}
+      whileTap={allRegularUnlocked ? { scale: 0.93, y: 1, transition: SPRING } : {}}
+    >
+      {/* 彩虹外框（透過 hue-rotate 動畫實現） */}
+      <motion.div
+        className="absolute inset-0 rounded-2xl"
+        style={{
+          background: allRegularUnlocked
+            ? 'linear-gradient(135deg,#ff006e,#ff8c00,#ffbe0b,#06d6a0,#3a86ff,#8338ec,#ff006e)'
+            : 'rgba(160,145,130,0.22)',
+          padding: 2,
+        }}
+        animate={allRegularUnlocked ? { filter: ['hue-rotate(0deg)', 'hue-rotate(360deg)'] } : {}}
+        transition={allRegularUnlocked ? { duration: 3, repeat: Infinity, ease: 'linear' } : {}}
+      />
+
+      {/* 卡片本體 */}
+      <div className="relative m-[2px] rounded-[calc(1rem-2px)] p-3 flex flex-col items-center gap-1.5"
+        style={{
+          background: allRegularUnlocked
+            ? 'linear-gradient(160deg, rgba(199,125,255,0.12), rgba(131,56,236,0.28))'
+            : 'rgba(200,190,175,0.10)',
+          filter: allRegularUnlocked ? 'none' : 'grayscale(1)',
+          opacity: allRegularUnlocked ? 1 : 0.38,
+          minHeight: 92,
+        }}
+      >
+        {/* 頭像 / 鎖 */}
+        <div className="w-12 h-12 rounded-full overflow-hidden flex items-center justify-center text-2xl flex-shrink-0"
+          style={{ background: allRegularUnlocked ? 'rgba(199,125,255,0.2)' : 'rgba(180,165,145,0.2)' }}>
+          {secretUnlocked
+            ? wish.avatar
+              ? <img src={wish.avatar} alt={wish.name} className="w-full h-full object-cover" />
+              : wish.emoji
+            : allRegularUnlocked
+              ? <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 2, repeat: Infinity }}>✨</motion.span>
+              : <Lock size={15} className="opacity-65" />
+          }
+        </div>
+
+        <p className="text-xs font-medium text-center leading-tight"
+          style={{ color: allRegularUnlocked ? 'rgba(199,125,255,0.95)' : 'rgba(61,48,39,0.4)' }}>
+          {secretUnlocked ? wish.name : allRegularUnlocked ? '神秘嘉賓' : '???'}
+        </p>
+
+        {secretUnlocked && (
+          <motion.span
+            className="text-[9px] font-rpg font-bold px-1.5 py-0.5 rounded-full text-white"
+            style={{ background: 'linear-gradient(135deg,#ff006e,#8338ec)' }}
+            animate={{ filter: ['hue-rotate(0deg)', 'hue-rotate(360deg)'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+          >
+            LEGEND
+          </motion.span>
+        )}
+
+        {!secretUnlocked && allRegularUnlocked && (
+          <motion.span className="text-[9px] font-rpg font-bold px-1.5 py-0.5 rounded-full"
+            style={{ background: 'rgba(199,125,255,0.25)', color: '#c77dff' }}
+            animate={{ opacity: [0.6, 1, 0.6] }} transition={{ duration: 1.4, repeat: Infinity }}>
+            點擊解鎖
+          </motion.span>
+        )}
+      </div>
+
+      {/* 光暈擴散（待解鎖時） */}
+      {allRegularUnlocked && !secretUnlocked && (
+        <motion.div className="absolute inset-0 rounded-2xl pointer-events-none"
+          animate={{ opacity: [0, 0.55, 0] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ background: 'radial-gradient(circle at 50% 50%, rgba(199,125,255,0.45), transparent 65%)' }}
+        />
+      )}
+    </motion.div>
   )
 }
 
@@ -450,10 +613,21 @@ function WishRevealModal({ wish, isNew, onClose }) {
                 {isNew && (
                   <motion.div initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
                     className="absolute top-3 left-3">
-                    <span className={`text-[10px] font-rpg font-bold px-2 py-1 rounded-full ${cfg.badge}`}
-                      style={{ border: `1px solid ${cfg.border}` }}>
-                      {wish.assignedRarity ?? 'R'} Unlocked!
-                    </span>
+                    {wish.assignedRarity === 'LEGEND'
+                      ? (
+                        <motion.span className="text-[10px] font-rpg font-bold px-2 py-1 rounded-full text-white"
+                          style={{ background: 'linear-gradient(135deg,#ff006e,#8338ec,#3a86ff)', boxShadow: '0 0 12px rgba(131,56,236,0.6)' }}
+                          animate={{ filter: ['hue-rotate(0deg)', 'hue-rotate(360deg)'] }}
+                          transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}>
+                          ✦ LEGEND Unlocked!
+                        </motion.span>
+                      ) : (
+                        <span className={`text-[10px] font-rpg font-bold px-2 py-1 rounded-full ${cfg.badge}`}
+                          style={{ border: `1px solid ${cfg.border}` }}>
+                          {wish.assignedRarity ?? 'R'} Unlocked!
+                        </span>
+                      )
+                    }
                   </motion.div>
                 )}
               </div>
@@ -817,7 +991,8 @@ export default function WishesGacha() {
     totalPulls, ssrPityCounter, ssrPityProgress,
     urPityCounter, urPityProgress, canClaimUR,
     inventory, pools, rarityMap,
-    isUnlocked, unlockedCount,
+    isUnlocked, unlockedCount, allRegularUnlocked,
+    secretUnlocked, unlockSecret,
     drawSingle, drawTen, claimUR,
     unlockAll, resetGacha,
   } = useGachaSystem()
@@ -825,11 +1000,12 @@ export default function WishesGacha() {
   // ── State machine ──────────────────────────────────────────────────────
   const [gachaPhase,   setGachaPhase]   = useState('IDLE')  // 'IDLE' | 'ANIMATING'
   const [pullResults,  setPullResults]  = useState([])
-  const [pullKey,      setPullKey]      = useState(0)       // 每次新抽遞增，強制 GachaAnimation 重掛
+  const [pullKey,      setPullKey]      = useState(0)
   const [revealWish,   setRevealWish]   = useState(null)
   const [revealIsNew,  setRevealIsNew]  = useState(false)
   const [lastResults,  setLastResults]  = useState([])
   const [showPoolInfo, setShowPoolInfo] = useState(false)
+  const [secretAnim,   setSecretAnim]   = useState(false)   // 神秘嘉賓特效播放中
 
   const allUnlocked = unlockedCount === ALL_WISHES.length
 
@@ -1041,15 +1217,42 @@ export default function WishesGacha() {
                   />
                 </motion.div>
               ))}
+
+              {/* 神秘嘉賓卡片（固定在最後） */}
+              {SECRET_WISH && (
+                <SecretWishCard
+                  allRegularUnlocked={allRegularUnlocked}
+                  secretUnlocked={secretUnlocked}
+                  onClick={() => {
+                    if (secretUnlocked) {
+                      setRevealWish({ ...SECRET_WISH, assignedRarity: 'LEGEND' })
+                      setRevealIsNew(false)
+                    } else {
+                      setSecretAnim(true)
+                    }
+                  }}
+                />
+              )}
             </div>
 
             <AnimatePresence>
-              {allUnlocked && (
+              {allUnlocked && secretUnlocked && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  className="mt-5 text-center">
+                  <motion.div className="inline-block px-5 py-2.5 rounded-full font-rpg text-sm text-white"
+                    style={{ background: 'linear-gradient(135deg,#ff006e,#8338ec,#3a86ff)', boxShadow: '0 4px 20px rgba(131,56,236,0.45)' }}
+                    animate={{ filter: ['hue-rotate(0deg)', 'hue-rotate(360deg)'] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}>
+                    ✦ 所有祝福（含神秘嘉賓）已全數解鎖！感謝大家的愛 ✦
+                  </motion.div>
+                </motion.div>
+              )}
+              {allUnlocked && !secretUnlocked && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   className="mt-5 text-center">
                   <div className="inline-block px-5 py-2.5 rounded-full font-rpg text-sm"
                     style={{ background: `${C.leather}18`, border: `1.5px solid ${C.leather}45`, color: C.leatherDeep }}>
-                    ✦ 所有祝福已解鎖！感謝大家的愛 ✦
+                    ✦ 所有祝福已解鎖！點擊神秘嘉賓卡片查看彩蛋 ✦
                   </div>
                 </motion.div>
               )}
@@ -1080,6 +1283,21 @@ export default function WishesGacha() {
             onClose={handleGachaClose}
             onContinue={handleContinuePull}
             onCardClick={handleResultCardClick}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* 神秘嘉賓解鎖特效 — z-[400]，在所有彈窗之上 */}
+      <AnimatePresence>
+        {secretAnim && (
+          <SecretRevealEffect
+            key="secret-effect"
+            onDone={() => {
+              setSecretAnim(false)
+              unlockSecret()
+              setRevealWish({ ...SECRET_WISH, assignedRarity: 'LEGEND' })
+              setRevealIsNew(true)
+            }}
           />
         )}
       </AnimatePresence>

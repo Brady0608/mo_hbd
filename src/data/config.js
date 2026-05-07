@@ -56,8 +56,9 @@ export const RESULT_CARD = {
  * 若需新增稀有度等級，在此同步加入即可。
  */
 export const RARITY_DISPLAY = {
-  R:   { label: 'R',   badge: 'bg-[rgba(122,145,141,0.22)] text-[#5A716D]', border: 'rgba(122,145,141,0.75)', glow: 'rgba(122,145,141,0.28)' },
-  SR:  { label: 'SR',  badge: 'bg-[rgba(212,163,115,0.22)] text-[#8A6940]', border: 'rgba(212,163,115,0.75)', glow: 'rgba(212,163,115,0.32)' },
-  SSR: { label: 'SSR', badge: 'bg-[rgba(217,148,126,0.22)] text-[#A05040]', border: 'rgba(217,148,126,0.75)', glow: 'rgba(217,148,126,0.28)' },
-  UR:  { label: 'UR',  badge: 'bg-[rgba(155,127,212,0.22)] text-[#7A5AB8]', border: 'rgba(155,127,212,0.75)', glow: 'rgba(155,127,212,0.38)' },
+  R:      { label: 'R',      badge: 'bg-[rgba(122,145,141,0.22)] text-[#5A716D]', border: 'rgba(122,145,141,0.75)', glow: 'rgba(122,145,141,0.28)' },
+  SR:     { label: 'SR',     badge: 'bg-[rgba(212,163,115,0.22)] text-[#8A6940]', border: 'rgba(212,163,115,0.75)', glow: 'rgba(212,163,115,0.32)' },
+  SSR:    { label: 'SSR',    badge: 'bg-[rgba(217,148,126,0.22)] text-[#A05040]', border: 'rgba(217,148,126,0.75)', glow: 'rgba(217,148,126,0.28)' },
+  UR:     { label: 'UR',     badge: 'bg-[rgba(155,127,212,0.22)] text-[#7A5AB8]', border: 'rgba(155,127,212,0.75)', glow: 'rgba(155,127,212,0.38)' },
+  LEGEND: { label: 'LEGEND', badge: 'text-white',                                 border: '#c77dff',              glow: 'rgba(199,125,255,0.55)' },
 }

@@ -115,6 +115,20 @@ export const ALL_WISHES = [
     message: '下次開車遊我要當隊長！哈哈，生日快樂！一起繼續闖關！',
   },
 
+  /* ── 神秘嘉賓（所有祝福解鎖後才能觀看，不進入抽卡池）──────────── */
+  {
+    id: 9999,
+    isSecret: true,                        // 標記為神秘嘉賓，不進抽卡池
+    name: '神秘嘉賓',
+    emoji: '🌟',
+    avatar: null,                          // 可改成 './images/wishes/secret.jpg'
+    color: '#c77dff',
+    forceRarity: null,
+    from: '???',
+    media: null,                           // 可放影片 / 錄音 / 圖片
+    message: '解鎖神秘祝福！',              // 替換成真實祝福內容
+  },
+
   /* ── 新增好友範本（複製下方並取消註解）──────────────────────────
   {
     id: 9,                               // 不可重複，依序遞增
