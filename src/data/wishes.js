@@ -72,7 +72,7 @@ export const ALL_WISHES = [
   },
   {
     id: 5,
-    name: '玲玉',
+    name: '鈴玉',
     emoji: '🎸',
     avatar: './images/avatar/linda.jpg',
     color: '#5A716D',
