@@ -109,6 +109,46 @@ function MemoryAudioPlayer({ src, color, emoji }) {
   )
 }
 
+/* ─── VideoThumbnail：擷取影片第一幀作為靜態縮圖 ────────────────────────── */
+function VideoThumbnail({ src, emoji }) {
+  const [thumb, setThumb] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    const video = document.createElement('video')
+    video.muted = true
+    video.playsInline = true
+    video.preload = 'metadata'
+    video.crossOrigin = 'anonymous'
+
+    const capture = () => {
+      if (cancelled || !video.videoWidth) return
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d').drawImage(video, 0, 0)
+      try {
+        const url = canvas.toDataURL('image/jpeg', 0.85)
+        if (!cancelled) setThumb(url)
+      } catch {}
+    }
+
+    video.addEventListener('seeked', capture)
+    video.addEventListener('loadedmetadata', () => { video.currentTime = 0.01 })
+    video.src = src
+    video.load()
+
+    return () => {
+      cancelled = true
+      video.removeEventListener('seeked', capture)
+      video.src = ''
+    }
+  }, [src])
+
+  if (thumb) return <img src={thumb} alt="" className="w-full h-full object-cover" />
+  return <span className="text-xl leading-none">{emoji}</span>
+}
+
 /* ─── MemoryNode ──────────────────────────────────────────────────────────── */
 function MemoryNode({ memory, position, onOpen }) {
   const ref    = useRef(null)
@@ -151,29 +191,24 @@ function MemoryNode({ memory, position, onOpen }) {
           )
           const t = detectMediaType(memory.media)
           if (t === 'video') return (
-            <video
-              src={memory.media}
-              className="w-full h-full object-cover"
-              preload="metadata"
-              muted playsInline
-              style={{ pointerEvents: 'none' }}
-            />
+            <VideoThumbnail src={memory.media} emoji={memory.emoji} />
           )
           if (t === 'image') return (
             <img src={memory.media} alt="" className="w-full h-full object-cover" />
           )
-          return memory.emoji
+          return <span className="text-xl leading-none">{memory.emoji}</span>
         })()}
       </div>
 
 
-      {/* 標題標籤 — 右側（桌機） */}
+      {/* 標題標籤 — 統一在圓形右側 */}
       <div
-        className="absolute top-1/2 -translate-y-1/2 left-[calc(100%+12px)] pointer-events-none hidden sm:block"
+        className="absolute top-1/2 -translate-y-1/2 left-[calc(100%+8px)] pointer-events-none"
+        style={{ width: 'max-content' }}
       >
         <div
-          className="px-2 py-1 rounded-lg whitespace-nowrap text-xs font-medium"
-          style={{ background: 'rgba(255,252,235,0.88)', border: `1px solid ${memory.color}42`, backdropFilter: 'blur(8px)', color: C.inkMid }}
+          className="px-2 py-1 rounded-lg text-xs font-medium whitespace-nowrap"
+          style={{ background: 'rgba(255,252,235,0.92)', border: `1px solid ${memory.color}42`, backdropFilter: 'blur(8px)', color: C.inkMid }}
         >
           {memory.title}
         </div>
@@ -206,7 +241,7 @@ function MemoryModal({ memory, onClose }) {
             key="bd"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.22 }}
-            className="fixed inset-0 z-[100] bg-[rgba(42,32,24,0.70)] backdrop-blur-[6px]"
+            className="fixed inset-0 z-100 bg-[rgba(42,32,24,0.70)] backdrop-blur-[6px]"
             onClick={onClose}
           />
           <motion.div
@@ -215,7 +250,7 @@ function MemoryModal({ memory, onClose }) {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.93, y: 14 }}
             transition={{ ...SPRING }}
-            className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none"
+            className="fixed inset-0 z-101 flex items-center justify-center p-4 pointer-events-none"
           >
             <div
               className="w-full max-w-sm overflow-hidden pointer-events-auto"
@@ -406,7 +441,7 @@ export default function AdventureMap() {
     >
       {/* 背景水印 */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden>
-        <div className="absolute top-8 left-8 font-rpg select-none opacity-[0.025] rotate-[-12deg]"
+        <div className="absolute top-8 left-8 font-rpg select-none opacity-[0.025] -rotate-12"
           style={{ fontSize: '15rem', color: C.leather }}>✦</div>
         <div className="absolute bottom-8 right-8 font-rpg select-none opacity-[0.025] rotate-[8deg]"
           style={{ fontSize: '10rem', color: C.leather }}>◈</div>
