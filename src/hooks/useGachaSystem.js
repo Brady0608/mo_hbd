@@ -6,8 +6,8 @@ import { RARITY_RATES, PITY_THRESHOLD, UR_PITY_THRESHOLD, POOL_GUARANTEE } from 
 const STORAGE_KEY = 'momo_gacha_v3'
 
 // 神秘嘉賓不進抽卡池
-const GACHA_WISHES = ALL_WISHES.filter(w => !w.isSecret)
-export const SECRET_WISH  = ALL_WISHES.find(w => w.isSecret) ?? null
+const GACHA_WISHES   = ALL_WISHES.filter(w => !w.isSecret)
+export const SECRET_WISHES = ALL_WISHES.filter(w => w.isSecret)  // 依序排列
 
 // HIGH 池包含 UR + SSR 兩種標籤，drawEngine 依稀有度標籤分開處理
 const HIGH_RARITIES = new Set(['UR', 'SSR'])
@@ -145,20 +145,20 @@ export function useGachaSystem() {
     const saved = loadStorage()
     if (saved?.pools && saved?.rarityMap) return saved
     const { pools, rarityMap } = buildPools(GACHA_WISHES)
-    return { pools, rarityMap, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {}, secretUnlocked: false }
+    return { pools, rarityMap, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {}, secretsUnlocked: 0 }
   })
 
-  const [pools,          setPools]          = useState(_init.pools)
-  const [rarityMap,      setRarityMap]      = useState(_init.rarityMap)
-  const [totalPulls,     setTotalPulls]     = useState(_init.totalPulls     ?? 0)
-  const [ssrPityCounter, setSsrPityCounter] = useState(_init.ssrPityCounter ?? 0)
-  const [urPityCounter,  setUrPityCounter]  = useState(_init.urPityCounter  ?? 0)
-  const [inventory,      setInventory]      = useState(_init.inventory      ?? {})
-  const [secretUnlocked, setSecretUnlocked] = useState(_init.secretUnlocked ?? false)
+  const [pools,           setPools]           = useState(_init.pools)
+  const [rarityMap,       setRarityMap]       = useState(_init.rarityMap)
+  const [totalPulls,      setTotalPulls]      = useState(_init.totalPulls      ?? 0)
+  const [ssrPityCounter,  setSsrPityCounter]  = useState(_init.ssrPityCounter  ?? 0)
+  const [urPityCounter,   setUrPityCounter]   = useState(_init.urPityCounter   ?? 0)
+  const [inventory,       setInventory]       = useState(_init.inventory       ?? {})
+  const [secretsUnlocked, setSecretsUnlocked] = useState(_init.secretsUnlocked ?? 0)
 
   useEffect(() => {
-    saveStorage({ pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory, secretUnlocked })
-  }, [pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory, secretUnlocked])
+    saveStorage({ pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory, secretsUnlocked })
+  }, [pools, rarityMap, totalPulls, ssrPityCounter, urPityCounter, inventory, secretsUnlocked])
 
   /* ── 衍生值 ─────────────────────────────────────────────────────────────── */
   const isUnlocked = useCallback((id) => (inventory[id] ?? 0) > 0, [inventory])
@@ -255,15 +255,17 @@ export function useGachaSystem() {
     })
   }, [])
 
-  /* ── unlockSecret（解鎖神秘嘉賓）───────────────────────────────────────── */
-  const unlockSecret = useCallback(() => setSecretUnlocked(true), [])
+  /* ── unlockNextSecret（依序解鎖下一位神秘嘉賓）────────────────────────── */
+  const unlockNextSecret = useCallback(() => {
+    setSecretsUnlocked(n => Math.min(n + 1, SECRET_WISHES.length))
+  }, [])
 
   /* ── resetGacha ─────────────────────────────────────────────────────────── */
   const resetGacha = useCallback(() => {
     const { pools: p, rarityMap: rm } = buildPools(GACHA_WISHES)
     setPools(p); setRarityMap(rm)
-    setTotalPulls(0); setSsrPityCounter(0); setUrPityCounter(0); setInventory({}); setSecretUnlocked(false)
-    saveStorage({ pools: p, rarityMap: rm, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {}, secretUnlocked: false })
+    setTotalPulls(0); setSsrPityCounter(0); setUrPityCounter(0); setInventory({}); setSecretsUnlocked(0)
+    saveStorage({ pools: p, rarityMap: rm, totalPulls: 0, ssrPityCounter: 0, urPityCounter: 0, inventory: {}, secretsUnlocked: 0 })
   }, [])
 
   return {
@@ -271,7 +273,7 @@ export function useGachaSystem() {
     urPityCounter, urPityProgress, canClaimUR,
     inventory, pools, rarityMap,
     isUnlocked, getCount, unlockedCount, allRegularUnlocked,
-    secretUnlocked, unlockSecret,
+    secretsUnlocked, unlockNextSecret,
     drawSingle, drawTen, claimUR,
     unlockAll, resetGacha,
   }

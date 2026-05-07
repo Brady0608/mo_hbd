@@ -105,28 +105,40 @@ export const ALL_WISHES = [
   },
   {
     id: 8,
-    name: '小傑',
+    name: '威志',
     emoji: '🎮',
-    avatar: null,
+    avatar: './images/avatar/joe.png',
     color: '#9B7FD4',
     forceRarity: null,
-    from: '遊戲夥伴',
-    media: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
-    message: '下次開車遊我要當隊長！哈哈，生日快樂！一起繼續闖關！',
+    from: 'T1機電',
+    media: './audio/wishes/joe.m4a',
+    message: '生日快樂！希望未來的日子，你會有更多屬於自己的幸福時光！',
   },
 
-  /* ── 神秘嘉賓（所有祝福解鎖後才能觀看，不進入抽卡池）──────────── */
+  /* ── 神秘嘉賓（依序解鎖：解完第1才能解第2，不進入抽卡池）──────── */
   {
     id: 9999,
-    isSecret: true,                        // 標記為神秘嘉賓，不進抽卡池
-    name: '神秘嘉賓',
+    isSecret: true,       // 第 1 位：解鎖所有一般祝福後可解鎖
+    name: 'Ａｍｙ',
     emoji: '🌟',
-    avatar: null,                          // 可改成 './images/wishes/secret.jpg'
+    avatar: './images/avatar/amy.jpg',
     color: '#c77dff',
     forceRarity: null,
-    from: '???',
-    media: null,                           // 可放影片 / 錄音 / 圖片
-    message: '解鎖神秘祝福！',              // 替換成真實祝福內容
+    from: '小頭目',
+    media: './videos/wishes/amy.mp4',
+    message: '施佩青小姐～工作上的事就不多說了，任何想接近你的男森都請過我這關！生日快樂可能只有再次出差的時候才能一起喝酒了🥴',
+  },
+  {
+    id: 10000,
+    isSecret: true,       // 第 2 位：解鎖第 1 位後才能解鎖
+    name: 'Ｊｏｓｈ哥',
+    emoji: '🎁',
+    avatar: './images/avatar/josh.jpg',         // 可改成 './images/avatar/secret2.jpg'
+    color: '#ff6b9d',
+    forceRarity: null,
+    from: '大頭目',
+    media: './audio/wishes/josh.m4a',          // 可放影片 / 錄音 / 圖片
+    message: '謝謝妳加入智崴！很開心妳能在這裡發光發熱',
   },
 
   /* ── 新增好友範本（複製下方並取消註解）──────────────────────────
